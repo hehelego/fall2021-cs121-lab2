@@ -1,0 +1,108 @@
+\documentclass{article}
+
+\usepackage{hyperref}
+\usepackage{xeCJK}
+\usepackage{fancyhdr}
+\usepackage{amsmath,amsthm,amssymb,amsfonts}
+\usepackage[plain]{algorithm}
+\usepackage{algpseudocode}
+\usepackage{enumerate}
+\usepackage{xifthen}
+\usepackage{xparse}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{xcolor}
+
+\usepackage[outputdir=tex-output]{minted}
+
+
+\usepackage[
+   backend=biber,
+   style=alphabetic,
+   sorting=ynt
+]{biblatex}
+\addbibresource{reference.bib}
+
+
+\topmargin=-0.05in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.5in
+\textheight=9.0in
+\headsep=0.25in
+\linespread{1.1}
+\renewcommand\headrulewidth{0.2pt}
+\renewcommand\footrulewidth{0.2pt}
+\setlength\parindent{0pt}
+
+
+%
+% page style
+%
+
+\newcommand{\reportSection}[1]{
+   \section{#1}
+   \rhead{section \emph{#1}}
+}
+
+\pagestyle{fancy}
+\lhead{CS121 Lab2}
+\cfoot{\thepage}
+
+
+
+%
+% metadate for title page
+%
+
+\title{
+   \textmd{\textbf{CS121@Fall2021 Lab 2\\ Cuckoo Hashing on GPU using CUDA}}\\
+   \vspace{2in}
+}
+\author{
+   {Cheng Peng (彭程)}
+   \and
+   {2020533068}
+}
+\date{\today}
+
+%
+% alias
+%
+
+% argmax and argmin
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+%                    %
+%                    %
+%    the document    %
+%                    %
+%                    %
+%%%%%%%%%%%%%%%%%%%%%%
+
+
+\begin{document}
+
+%%%%% title page %%%%%
+\maketitle
+\pagebreak
+
+%%%%% TOC page %%%%%
+\tableofcontents
+\pagebreak
+
+%%%%% content page %%%%%
+
+%%%%% appendix page %%%%%
+\appendix
+
+\printbibliography[
+	heading=bibintoc,
+	title={bibliography}
+]
+
+\end{document}
