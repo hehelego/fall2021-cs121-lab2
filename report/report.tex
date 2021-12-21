@@ -4,8 +4,7 @@
 \usepackage{xeCJK}
 \usepackage{fancyhdr}
 \usepackage{amsmath,amsthm,amssymb,amsfonts}
-\usepackage[plain]{algorithm}
-\usepackage{algpseudocode}
+\usepackage{algorithm2e}
 \usepackage{enumerate}
 \usepackage{xifthen}
 \usepackage{xparse}
@@ -41,12 +40,14 @@
 %
 
 \newcommand{\reportSection}[1]{
+   \newpage
    \section{#1}
-   \rhead{section \emph{#1}}
+   \chead{section \emph{#1}}
 }
 
 \pagestyle{fancy}
 \lhead{CS121 Lab2}
+\rhead{\thepage}
 \cfoot{\thepage}
 
 
@@ -60,7 +61,7 @@
    \vspace{2in}
 }
 \author{
-   {Cheng Peng (彭程)}
+   {Cheng Peng (彭程)}\thanks{pengcheng2@shanghaitech.edu.cn}
    \and
    {2020533068}
 }
@@ -78,9 +79,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%
 %                    %
-%                    %
 %    the document    %
-%                    %
 %                    %
 %%%%%%%%%%%%%%%%%%%%%%
 
@@ -88,14 +87,25 @@
 \begin{document}
 
 %%%%% title page %%%%%
-\maketitle
-\pagebreak
-
 %%%%% TOC page %%%%%
+\maketitle
+\vfill
 \tableofcontents
+\vfill
 \pagebreak
 
 %%%%% content page %%%%%
+\reportSection{Introduction}
+
+Our overall goal is to make the algorithm as fast as possible.
+
+\reportSection{The Cuckoo Hashing}
+
+\reportSection{Algorithm Design}
+
+\reportSection{Performance Evaluation}
+
+\reportSection{Futher Improvement}
 
 %%%%% appendix page %%%%%
 \appendix
