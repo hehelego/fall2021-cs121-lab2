@@ -3,11 +3,18 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
-#include <random>
 #include <cuda.h>
 #include <curand.h>
 #include <curand_kernel.h>
 #include <iostream>
+#include <random>
+
+using u8 = std::uint8_t;
+using i8 = std::int8_t;
+using u32 = std::uint32_t;
+using i32 = std::int32_t;
+using u64 = std::uint64_t;
+using i64 = std::int64_t;
 
 // For printing debug log
 struct Debug {
@@ -31,14 +38,6 @@ struct Output {
     return *this;
   }
 };
-
-using u8 = std::uint8_t;
-using i8 = std::int8_t;
-using u32 = std::uint32_t;
-using i32 = std::int32_t;
-using u64 = std::uint64_t;
-using i64 = std::int64_t;
-
 // For timing
 struct Timer {
   std::chrono::high_resolution_clock::time_point _start, _end;
@@ -88,9 +87,28 @@ inline void batchRandomGen(u32 *d_array, u32 n) {
   CURAND_CALL(curandGenerate(rng, d_array, n));
 }
 
+// shortcut: allocate an array of T with size n on GPU
 template <typename T> inline T *mallocDevice(u32 n) {
   T *p = nullptr;
   CUDA_CALL(cudaMalloc((void **)&p, sizeof(T) * n));
   return p;
 }
+// shortcut: free allocated memory on GPU
 template <typename T> inline void freeDevice(T *p) { CUDA_CALL(cudaFree(p)); }
+
+class CopyKind {
+  i32 _;
+
+public:
+  explicit CopyKind(i32 _) : _(_) {}
+  static const CopyKind H2H;
+  static const CopyKind H2D;
+  static const CopyKind D2H;
+  static const CopyKind D2D;
+  operator cudaMemcpyKind() const { return (cudaMemcpyKind)_; }
+};
+
+// shortcut: free allocated memory on GPU
+template <typename T> inline void cudaCopy(T *dst, const T *src, u32 n, CopyKind kind) {
+  CUDA_CALL(cudaMemcpy(dst, src, sizeof(T) * n, kind));
+}

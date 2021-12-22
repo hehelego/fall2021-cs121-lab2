@@ -1,8 +1,8 @@
 #include "common.cuh"
 
-#include <curand.h>
-#include <curand_kernel.h>
 #include <functional>
+#include <set>
+#include <vector>
 
 double time_once(std::function<void()> func) {
   static Timer timer;
@@ -21,9 +21,17 @@ double time_func(std::function<void()> func, u32 runs) {
 
 const u32 N = 1 << 25;
 i32 main() {
-  auto rand_keys = mallocDevice<u32>(N);
-  auto f = [&]() { batchRandomGen(rand_keys, N); };
+  auto randKeys = mallocDevice<u32>(N);
+  auto f = [&]() { batchRandomGen(randKeys, N); };
   auto span = time_func(f, 20u);
   Output() << "takes" << span << "seconds for one generation\n";
+
+  auto *data = new u32[N];
+  cudaCopy(data, randKeys, N, CopyKind::D2H);
+  std::set<u32> dup;
+  while (dup.size() < 100u) dup.insert(rand() % N);
+
+  auto out = Output();
+  for (auto x : dup) out << data[x] << "\n";
   return 0;
 }
