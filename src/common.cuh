@@ -3,6 +3,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <random>
 #include <cuda.h>
 #include <curand.h>
 #include <curand_kernel.h>
@@ -74,7 +75,22 @@ inline T div_ceil(T a, T b) {
   } while (0)
 
 // Get a random number from std::random_device, for seeding pseudo random number generator
-inline u32 getRandSeed();
+inline u32 getRandSeed() {
+  std::random_device rand_dev;
+  return rand_dev();
+}
 
 // random array on device
-inline void batchRandomGen(u32 *d_array, u32 n);
+inline void batchRandomGen(u32 *d_array, u32 n) {
+  curandGenerator_t rng;
+  CURAND_CALL(curandCreateGenerator(&rng, CURAND_RNG_PSEUDO_MT19937));
+  CURAND_CALL(curandSetPseudoRandomGeneratorSeed(rng, getRandSeed()));
+  CURAND_CALL(curandGenerate(rng, d_array, n));
+}
+
+template <typename T> inline T *mallocDevice(u32 n) {
+  T *p = nullptr;
+  CUDA_CALL(cudaMalloc((void **)&p, sizeof(T) * n));
+  return p;
+}
+template <typename T> inline void freeDevice(T *p) { CUDA_CALL(cudaFree(p)); }
