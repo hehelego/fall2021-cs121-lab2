@@ -3,7 +3,7 @@ flag=
 debug=0
 define=-D DEBUG=$(debug)
 libs=-lcurand
-src=src/main.cu src/cuckoo.cu src/common.cpp
+src=src/main.cu src/cuckoo.cu src/common.cu
 binary=bin/cuckoo
 
 all:
