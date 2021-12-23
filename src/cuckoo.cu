@@ -1,20 +1,36 @@
-#include <cuda.h>
-#include <memory>
+#include "common.cuh"
+#include "cuckoo.cuh"
 
-template <typename T, int N> struct DeviceArray {
-  T *a;
-  DeviceArray() { cudaMalloc((void **)a, N * sizeof(T)); }
-  ~DeviceArray() { cudaFree(a); }
-  __device__ __host__ int size() const { return N; }
-  __device__ __host__ T &operator[](int i) { return a[i]; }
-  __device__ __host__ const T &operator[](int i) const { return a[i]; }
-  __device__ __host__ T *raw() { return a; }
-  __device__ __host__ const T *raw() const { return a; }
-};
+// test whether x is 0xFFFFFFFF
+static __host__ __device__ inline bool empty(u32 x) { return (~x) == 0u; }
 
-using Array = DeviceArray<int, 100>;
+template <u32 HASH_FUNCS, u32 THREADS_PER_BLOCK> CuckooHashingTable<HASH_FUNCS, THREADS_PER_BLOCK>::CuckooHashingTable(u32 cap) {
+  _slots = coda::malloc<u32>(cap), _keys = coda::malloc<u32>(cap);
+  _cap = cap;
+  clear();
+}
 
-__global__ void vec_add(Array &a, Array &b) {
-  int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < a.size()) a[i] += b[i];
+template <u32 HASH_FUNCS, u32 THREADS_PER_BLOCK> CuckooHashingTable<HASH_FUNCS, THREADS_PER_BLOCK>::~CuckooHashingTable() {
+  coda::free(_slots), coda::free(_keys);
+}
+
+template <u32 HASH_FUNCS, u32 THREADS_PER_BLOCK> void CuckooHashingTable<HASH_FUNCS, THREADS_PER_BLOCK>::clear() {
+  for (u32 i = 0; i < HASH_FUNCS; i++) seed[i] = getRandSeed();
+
+  _sz = 0, _inserted = 0;
+
+  coda::fill0xFF(_slots, _cap), coda::fill0xFF(_keys, _cap);
+}
+
+template <u32 HASH_FUNCS, u32 THREADS_PER_BLOCK>
+void CuckooHashingTable<HASH_FUNCS, THREADS_PER_BLOCK>::update(u32 *keys, u32 n) {
+  (void)keys;
+  (void)n;
+}
+
+template <u32 HASH_FUNCS, u32 THREADS_PER_BLOCK>
+void CuckooHashingTable<HASH_FUNCS, THREADS_PER_BLOCK>::query(u32 *keys, u32 *result, u32 n) {
+  (void)keys;
+  (void)result;
+  (void)n;
 }
