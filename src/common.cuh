@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _CS121_LAB2_COMMON_
+#define _CS121_LAB2_COMMON_
 
 #include <cassert>
 #include <chrono>
@@ -21,7 +22,7 @@ struct Debug {
   std::ostream &stream;
   Debug(std::ostream &stream = std::cerr) : stream(stream) {}
   template <typename T> inline Debug &operator<<(const T &t) {
-#if (DEBUG == 0)
+#ifdef DEBUG
     stream << t;
 #else
     (void)t;
@@ -112,3 +113,12 @@ public:
 template <typename T> inline void cudaCopy(T *dst, const T *src, u32 n, CopyKind kind) {
   CUDA_CALL(cudaMemcpy(dst, src, sizeof(T) * n, kind));
 }
+
+// shortcut: fill with zero bytes on GPU
+template <typename T> inline void cudaBzero(T *d_array, u32 n) {
+  CUDA_CALL(cudaMemset(d_array,0,sizeof(T)*n));
+}
+
+__host__ __device__ u32 xxHash32(u32 seed, u32 value);
+
+#endif

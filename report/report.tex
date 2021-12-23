@@ -7,6 +7,7 @@
 \usepackage{algorithm2e}
 \usepackage{enumerate}
 \usepackage{xifthen}
+\usepackage{indentfirst}
 \usepackage{xparse}
 \usepackage{graphicx}
 \usepackage{float}
@@ -20,7 +21,7 @@
    style=alphabetic,
    sorting=ynt
 ]{biblatex}
-\addbibresource{reference.bib}
+\addbibresource{ref.bib}
 
 
 \topmargin=-0.05in
@@ -32,7 +33,6 @@
 \linespread{1.1}
 \renewcommand\headrulewidth{0.2pt}
 \renewcommand\footrulewidth{0.2pt}
-\setlength\parindent{0pt}
 
 
 %
@@ -97,11 +97,44 @@
 %%%%% content page %%%%%
 \reportSection{Introduction}
 
+Hash table is one of the most widely used data structure.
+Since it was invented, extensive studies and practical uses have been made.
+Separate chaining and open addressing.
+
+
 Our overall goal is to make the algorithm as fast as possible.
 
 \reportSection{The Cuckoo Hashing}
 
 \reportSection{Algorithm Design}
+
+\subsection{Choice of Hash Function}
+
+To achieve good performance, we have to choose a set of hash function with care.
+Hash functions of high quality are generally slow to compute, which may limit the throughput.
+However, using fast hash functions may result in more collisions, which in turns lower our throughput.
+Finding A hash function that achieves best balance between speed and quality is the key to high performance.
+
+A research\cite{paper:hashfuncperfgpu} published on JCGT\footnote{Journal of Computer Graphics}
+tested a set of cryptographic and non-cryptographic hash functions for their quality and speed in the context of GPU rendering.
+They concluded that for 1D to 1D hash function, which is the scenario in lab2, the \emph{xxhash32} falls in the middle of the spectrum from the fastest algorithms to the algorithms that yield the best results.\par
+
+A simple reference implementation\cite{blog:xxhimpl} in cpp was found.\par
+
+The \emph{xxhash32} takes a two input a 4-byte seed and a byte stream, then produces a 32-bit integer as output.
+Or formally speaking:
+
+\[
+   H:\mathrm{byte}^4\times \mathrm{byte}^\ast \to \mathrm{byte}^4
+\]
+
+Therefore, we can creat a set of hash functions by seeding \emph{xxhash32} with different seeds.
+
+\[
+   H_i:\mathrm{byte}^\ast \to \mathrm{byte}^4
+   \qquad
+   H_i(\mathrm{text}) = H(\mathrm{seed}_i,\mathrm{text})
+\]
 
 \reportSection{Performance Evaluation}
 
