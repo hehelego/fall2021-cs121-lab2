@@ -47,7 +47,7 @@ struct Timer {
   inline void end() { _end = std::chrono::high_resolution_clock::now(); }
   inline double time_in_second() const {
     auto interval = _end - _start;
-    return std::chrono::duration_cast<std::chrono::microseconds>(interval).count() / 1e-6;
+    return std::chrono::duration_cast<std::chrono::microseconds>(interval).count() / 1e6;
   }
 };
 

@@ -1,6 +1,7 @@
 #include "common.cuh"
 
 #include <functional>
+#include <iomanip>
 #include <set>
 #include <vector>
 
@@ -38,7 +39,7 @@ i32 main() {
     Debug() << "once\n";
   };
   auto span = time_func(f, 10u);
-  Output() << "takes " << span << " seconds for one run\n";
+  Output() << "takes " << std::fixed << std::setprecision(6) << span << " seconds for one run\n";
 
   auto keys = new u32[N], hkeys = new u32[N];
   cudaCopy(keys, randKeys, N, CopyKind::D2H);
