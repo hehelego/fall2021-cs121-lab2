@@ -88,15 +88,8 @@ inline void batchRandomGen(u32 *d_array, u32 n) {
   CURAND_CALL(curandGenerate(rng, d_array, n));
 }
 
-// shortcut: allocate an array of T with size n on GPU
-template <typename T> inline T *mallocDevice(u32 n) {
-  T *p = nullptr;
-  CUDA_CALL(cudaMalloc((void **)&p, sizeof(T) * n));
-  return p;
-}
-// shortcut: free allocated memory on GPU
-template <typename T> inline void freeDevice(T *p) { CUDA_CALL(cudaFree(p)); }
-
+// utilities: wrapper for common cuda calls
+namespace coda {
 class CopyKind {
   i32 _;
 
@@ -109,15 +102,33 @@ public:
   operator cudaMemcpyKind() const { return (cudaMemcpyKind)_; }
 };
 
+// shortcut: copy to DeviceSymbol memory (__constant__) memory
+template <typename T> inline void copyConst(T *dst, const T *src, u32 n, CopyKind kind = CopyKind::H2D) {
+  CUDA_CALL(cudaMemcpyToSymbol(dst, src, sizeof(T) * n, 0, kind));
+}
+
 // shortcut: free allocated memory on GPU
-template <typename T> inline void cudaCopy(T *dst, const T *src, u32 n, CopyKind kind) {
+template <typename T> inline void copy(T *dst, const T *src, u32 n, CopyKind kind) {
   CUDA_CALL(cudaMemcpy(dst, src, sizeof(T) * n, kind));
 }
 
-// shortcut: fill with zero bytes on GPU
-template <typename T> inline void cudaBzero(T *d_array, u32 n) {
-  CUDA_CALL(cudaMemset(d_array,0,sizeof(T)*n));
+// shortcut: allocate an array of T with size n on GPU
+template <typename T> inline T *malloc(u32 n) {
+  T *p = nullptr;
+  CUDA_CALL(cudaMalloc((void **)&p, sizeof(T) * n));
+  return p;
 }
+
+// shortcut: free allocated memory on GPU
+template <typename T> inline void free(T *p) { CUDA_CALL(cudaFree(p)); }
+
+// shortcut: fill bytes on GPU
+template <typename T> inline void fill(T *d_array, u32 n, u32 value) { CUDA_CALL(cudaMemset(d_array, value, sizeof(T) * n)); }
+// shortcut: fill with zero bytes on GPU
+template <typename T> inline void fillZero(T *d_array, u32 n) { fill(d_array, n, 0x00u); }
+// shortcut: fill with 0xff bytes on GPU
+template <typename T> inline void fill0xFF(T *d_array, u32 n) { fill(d_array, n, 0xFFu); }
+} // namespace coda
 
 __host__ __device__ u32 xxHash32(u32 seed, u32 value);
 

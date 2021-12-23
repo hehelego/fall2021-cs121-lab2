@@ -1,9 +1,11 @@
 #include "common.cuh"
 
+namespace coda {
 const CopyKind CopyKind::H2H = CopyKind(0);
 const CopyKind CopyKind::H2D = CopyKind(1);
 const CopyKind CopyKind::D2H = CopyKind(2);
 const CopyKind CopyKind::D2D = CopyKind(3);
+} // namespace coda
 
 static const u32 Prime1 = 2654435761U;
 static const u32 Prime2 = 2246822519U;
