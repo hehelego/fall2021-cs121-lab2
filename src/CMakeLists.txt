@@ -8,10 +8,12 @@ else()
 endif()
 
 find_package(CUDAToolkit)
+add_library(common common.cu)
 add_library(cuckoo_gpu cuckoo_gpu.cu)
 add_library(cuckoo_cpu cuckoo_cpu.cu)
-add_library(common common.cu)
 target_link_libraries(common CUDA::curand)
+target_link_libraries(cuckoo_cpu common)
+target_link_libraries(cuckoo_gpu common)
 
 add_executable(run main.cu)
 target_link_libraries(run
