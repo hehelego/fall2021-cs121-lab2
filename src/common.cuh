@@ -1,9 +1,9 @@
-#ifndef _CS121_LAB2_COMMON_
-#define _CS121_LAB2_COMMON_
+#pragma once
 
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <cuda.h>
 #include <curand.h>
 #include <curand_kernel.h>
@@ -52,6 +52,14 @@ struct Timer {
 };
 
 template <typename T>
+//  \[ \lfloor \log_2 x \rfloor \]
+inline T binaryLength(T x) {
+  T r = 0;
+  while (x) x >>= 1, r++;
+  return r;
+}
+
+template <typename T>
 //  \[ \lfloor \frac{a}{b} \rfloor \]
 inline T div_floor(T a, T b) {
   return (a / b);
@@ -74,22 +82,33 @@ inline T div_ceil(T a, T b) {
     if (e != CURAND_STATUS_SUCCESS) Debug() << "[CURNAD_ERR](" << __FILE__ << ":" << __LINE__ << ")\n";                          \
   } while (0)
 
+// shortcut: fill bytes on CPU
+template <typename T> static inline void fill(T *a, u32 n, u32 value) { memset(a, value, sizeof(T) * n); }
+// shortcut: fill with zero bytes on CPU
+template <typename T> inline void fillZero(T *a, u32 n) { fill(a, n, 0x00u); }
+// shortcut: fill with 0xff bytes on CPU
+template <typename T> inline void fill0xFF(T *a, u32 n) { fill(a, n, 0xFFu); }
+
 // Get a random number from std::random_device, for seeding pseudo random number generator
-inline u32 getRandSeed() {
-  std::random_device rand_dev;
+inline u32 randomSeed() {
+  static std::random_device rand_dev;
   return rand_dev();
 }
-
 // random array on device
-inline void batchRandomGen(u32 *d_array, u32 n) {
-  curandGenerator_t rng;
-  CURAND_CALL(curandCreateGenerator(&rng, CURAND_RNG_PSEUDO_MT19937));
-  CURAND_CALL(curandSetPseudoRandomGeneratorSeed(rng, getRandSeed()));
-  CURAND_CALL(curandGenerate(rng, d_array, n));
+inline void randomArray(u32 *a, u32 n) {
+  std::mt19937 rng(randomSeed());
+  for (u32 i = 0; i < n; i++) a[i] = rng();
 }
 
 // utilities: wrapper for common cuda calls
 namespace coda {
+// random array on device
+inline void randomArray(u32 *d_array, u32 n) {
+  curandGenerator_t rng;
+  CURAND_CALL(curandCreateGenerator(&rng, CURAND_RNG_PSEUDO_MT19937));
+  CURAND_CALL(curandSetPseudoRandomGeneratorSeed(rng, randomSeed()));
+  CURAND_CALL(curandGenerate(rng, d_array, n));
+}
 class CopyKind {
   i32 _;
 
@@ -131,5 +150,3 @@ template <typename T> inline void fill0xFF(T *d_array, u32 n) { fill(d_array, n,
 } // namespace coda
 
 __host__ __device__ u32 xxHash32(u32 seed, u32 value);
-
-#endif

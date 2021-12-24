@@ -1,4 +1,3 @@
-#include "common.cuh"
 #include "cuckoo_cpu.cuh"
 
 namespace CpuTable {
@@ -8,7 +7,7 @@ static inline bool empty(u32 x) { return (~x) == 0u; }
 
 Table::Table(u32 cap, u32 t) {
   _n = cap, _m = t;
-  _threshold = bitwiseLog2(_n) * 4;
+  _threshold = binaryLength(_n) * 4;
   for (u32 i = 0; i < _m; i++) _slots[i] = new u32[_n];
   _backup = new u32[_n * _m];
   clear();

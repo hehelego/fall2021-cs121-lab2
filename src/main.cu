@@ -1,4 +1,6 @@
 #include "common.cuh"
+#include "cuckoo_cpu.cuh"
+#include "cuckoo_gpu.cuh"
 
 #include <functional>
 #include <iomanip>
@@ -20,47 +22,29 @@ double time_func(std::function<void()> func, u32 runs) {
   return s / runs;
 }
 
-const u32 N = 1 << 25;
-const u32 SAMPLE = 30;
-const u32 SEED = 19260917;
-
-__global__ void batchHash(u32 *d_k, u32 *d_h, int n) {
-  int i = threadIdx.x + blockIdx.x * blockDim.x;
-
-  if (i < n) d_h[i] = xxHash32(SEED, d_k[i]);
-}
-i32 test_rand_hash() {
-  auto randKeys = coda::malloc<u32>(N), hashKeys = coda::malloc<u32>(N);
-  coda::fillZero(randKeys, N), coda::fillZero(hashKeys, N);
-  batchRandomGen(randKeys, N);
-
-  auto f = [&]() {
-    batchHash<<<N / 1024, 1024>>>(randKeys, hashKeys, N);
-    Debug() << "once\n";
-  };
-  auto span = time_func(f, 10u);
-  Output() << "takes " << std::fixed << std::setprecision(6) << span << " seconds for one run\n";
-
-  auto keys = new u32[N], hkeys = new u32[N];
-  coda::copy(keys, randKeys, N, coda::CopyKind::D2H);
-  coda::copy(hkeys, hashKeys, N, coda::CopyKind::D2H);
-
-  std::set<u32> dup;
-  while (dup.size() < SAMPLE) dup.insert(rand() % N);
-
-  auto out = Output();
-  for (auto i : dup) {
-    out << "key:" << keys[i] << "\t";
-    out << "hash(gpu):" << hkeys[i] << "\t";
-    out << "hash(cpu):" << xxHash32(SEED, keys[i]) << "\n";
-  };
-
-  coda::free(randKeys), coda::free(hashKeys);
-  delete[] keys, delete[] hkeys;
-  return 0;
-}
+const u32 N = 1 << 20;
+const u32 M = 1 << 15;
 
 i32 main() {
-  test_rand_hash();
+  CpuTable::Table t_cpu(N, 2);
+  CpuTable::UnorderedMap t_stl;
+
+  u32 *key = new u32[N], *qry = new u32[N];
+  randomArray(key, N), randomArray(qry, N);
+  u32 *res0 = new u32[N], *res1 = new u32[N];
+  fillZero(res0, N), fillZero(res1, N);
+
+  u32 *sqry = new u32[M];
+  randomArray(sqry, M);
+  for (u32 i = 0; i < M; i++) qry[sqry[i] % N] = key[sqry[i] % N];
+  delete[] sqry;
+
+  t_cpu.update(key, N), t_stl.update(key, N);
+  t_cpu.query(qry, res0, N), t_stl.query(qry, res0, N);
+  bool cmp = std::equal(res0, res0 + M, res1, res1 + M);
+  assert(cmp);
+
+  delete[] key, delete[] qry;
+  delete[] res0, delete[] res1;
   return 0;
 }

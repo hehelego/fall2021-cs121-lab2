@@ -1,5 +1,4 @@
-#ifndef _CS121_CUCKOO_CPU_
-#define _CS121_CUCKOO_CPU_
+#pragma once
 
 #include "common.cuh"
 #include <unordered_set>
@@ -40,5 +39,3 @@ public:
 };
 
 } // namespace CpuTable
-
-#endif

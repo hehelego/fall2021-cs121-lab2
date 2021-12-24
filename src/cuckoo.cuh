@@ -1,5 +1,4 @@
-#ifndef _CS121_LAB2_CUCKOO_
-#define _CS121_LAB2_CUCKOO_
+#pragma once
 
 template <u32 HASH_FUNCS = 2, u32 THREADS_PER_BLOCK = 1024> class CuckooHashingTable {
   u32 seed[HASH_FUNCS];
@@ -14,5 +13,3 @@ public:
   void update(u32 *keys, u32 n);
   void query(u32 *keys, u32 *result, u32 n);
 };
-
-#endif

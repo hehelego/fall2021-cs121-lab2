@@ -13,7 +13,7 @@ static const u32 Prime3 = 3266489917U;
 static const u32 Prime4 = 668265263U;
 static const u32 Prime5 = 374761393U;
 
-__host__ __device__ u32 __rotateLeft(u32 v, u32 n) { return (v << n) | (v >> (32 - n)); }
+static __host__ __device__ inline u32 __rotateLeft(u32 v, u32 n) { return (v << n) | (v >> (32 - n)); }
 
 __host__ __device__ u32 xxHash32(u32 seed, u32 value) {
   u32 state = seed + Prime5;
