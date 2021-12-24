@@ -22,29 +22,37 @@ double time_func(std::function<void()> func, u32 runs) {
   return s / runs;
 }
 
-const u32 N = 1 << 20;
-const u32 M = 1 << 15;
-
-i32 main() {
-  CpuTable::Table t_cpu(N, 2);
+void checkCpuTable() {
+  const u32 N = 1 << 20;
+  const u32 M = 1 << 18;
+  CpuTable::Table t_cpu(N*4, 2);
   CpuTable::UnorderedMap t_stl;
 
   u32 *key = new u32[N], *qry = new u32[N];
-  randomArray(key, N), randomArray(qry, N);
+  randomArray(key, N);
   u32 *res0 = new u32[N], *res1 = new u32[N];
   fillZero(res0, N), fillZero(res1, N);
 
-  u32 *sqry = new u32[M];
-  randomArray(sqry, M);
-  for (u32 i = 0; i < M; i++) qry[sqry[i] % N] = key[sqry[i] % N];
-  delete[] sqry;
+  auto f = [&]() {
+    randomArray(qry, N);
+    u32 *sqry = new u32[M];
+    randomArray(sqry, M);
+    for (u32 i = 0; i < M; i++) qry[sqry[i] % N] = key[sqry[i] % N];
+    delete[] sqry;
 
-  t_cpu.update(key, N), t_stl.update(key, N);
-  t_cpu.query(qry, res0, N), t_stl.query(qry, res0, N);
-  bool cmp = std::equal(res0, res0 + M, res1, res1 + M);
-  assert(cmp);
+    t_cpu.update(key, N), t_stl.update(key, N);
+    t_cpu.query(qry, res0, N), t_stl.query(qry, res0, N);
+    bool cmp = std::equal(res0, res0 + M, res1, res1 + M);
+    assert(cmp);
+  };
+
+  time_func(f, 10);
 
   delete[] key, delete[] qry;
   delete[] res0, delete[] res1;
+  return;
+}
+i32 main() {
+  checkCpuTable();
   return 0;
 }

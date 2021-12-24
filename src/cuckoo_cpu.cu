@@ -1,7 +1,6 @@
 #include "cuckoo_cpu.cuh"
 
 namespace CpuTable {
-
 // test whether x is 0xFFFFFFFF
 static inline bool empty(u32 x) { return (~x) == 0u; }
 
@@ -9,13 +8,11 @@ Table::Table(u32 cap, u32 t) {
   _n = cap, _m = t;
   _threshold = binaryLength(_n) * 4;
   for (u32 i = 0; i < _m; i++) _slots[i] = new u32[_n];
-  _backup = new u32[_n * _m];
   clear();
 }
 
 Table::~Table() {
   for (u32 i = 0; i < _m; i++) delete[] _slots[i];
-  delete[] _backup;
 }
 
 void Table::clear() {
@@ -26,11 +23,21 @@ void Table::clear() {
 
 void Table::rehash() {
   Debug() << "CPU TABLE: rehash\n";
-  u32 sz = _sz;
+
+  u32 *backup[M_HASH_FUNCS];
+  for (u32 i = 0; i < _m; i++) {
+    backup[i] = _slots[i];
+    _slots[i] = new u32[_n];
+  }
+  for (u32 i = 0; i < _m; i++) {
+    for (u32 j = 0; j < _n; j++) insertOnce(backup[i][j]);
+  }
   clear();
-  for (u32 i = 0; i < sz; i++) insertOnce(_backup[i]);
+  for (u32 i = 0; i < _m; i++) delete[] backup[i];
 }
 void Table::insertOnce(u32 key) {
+  if (empty(key)) return;
+
   bool ok = false;
   u32 cnt = 0;
   do {
@@ -49,9 +56,11 @@ void Table::insertOnce(u32 key) {
       }
     }
   } while (!ok);
-  _backup[_sz++] = key;
+  _sz++;
 }
 bool Table::queryOnce(u32 key) const {
+  if (empty(key)) return false;
+
   u32 cnt = 0;
   for (u32 i = 0; i < _m; i++) {
     u32 slot = xxHash32(_seeds[i], key) % _n;
@@ -61,11 +70,21 @@ bool Table::queryOnce(u32 key) const {
 }
 
 void Table::update(u32 *keys, u32 n) {
-  clear();
   for (u32 i = 0; i < n; i++) insertOnce(keys[i]);
 }
 void Table::query(u32 *keys, u32 *result, u32 n) const {
   for (u32 i = 0; i < n; i++) result[i] = queryOnce(keys[i]);
+}
+
+//////////////////////////////
+void UnorderedMap::clear() { table.clear(); }
+void UnorderedMap::update(u32 *keys, u32 n) {
+  for (u32 i = 0; i < n; i++) {
+    if (!empty(keys[i])) table.insert(keys[i]);
+  }
+}
+void UnorderedMap::query(u32 *keys, u32 *result, u32 n) const {
+  for (u32 i = 0; i < n; i++) result[i] = table.find(keys[i]) != table.end();
 }
 
 } // namespace CpuTable
