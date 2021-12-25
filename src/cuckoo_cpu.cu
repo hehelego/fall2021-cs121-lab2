@@ -16,7 +16,18 @@ Table::~Table() {
 }
 
 void Table::clear() {
-  randomArray(_seeds, _m);
+  while (true) {
+    randomArray(_seeds, _m);
+    bool ok = true;
+    for (u32 i = 0; i < _m; i++) {
+      for (u32 j = 0; j < i; j++) ok &= (_seeds[i] != _seeds[j]);
+    }
+    if (!ok) {
+      randomArray(_seeds, _m);
+    } else {
+      break;
+    }
+  }
   _sz = 0;
   for (u32 i = 0; i < _m; i++) fill0xFF(_slots[i], _n);
 }
@@ -48,7 +59,7 @@ void Table::insertOnce(u32 key) {
     for (u32 i = 0; i < _m; i++) {
       u32 slot = xxHash32(_seeds[i], key) % _n;
       std::swap(key, _slots[i][slot]);
-      if (empty(key)) {
+      if (empty(key) || key == _slots[i][slot]) {
         ok = true;
         break;
       } else {
