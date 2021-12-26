@@ -84,15 +84,33 @@ void checkGpuTable() {
   coda::free(deviceKey), coda::free(deviceQry), coda::free(deviceResult);
   return;
 }
+
+static __global__ void setFirstKernel(u32 *a) {
+  u32 i = threadIdx.x + blockIdx.x * blockDim.x;
+  a[i] = a[0];
+}
+static __global__ void printKernel(u32 *a) {
+  u32 i = threadIdx.x + blockIdx.x * blockDim.x;
+  printf("%u\n", a[i]);
+}
 i32 main() {
-  checkGpuTable();
-  const u32 N = 8;
+  u32 k = 0;
+  std::cin >> k;
+  const u32 N = 2 << k;
   GpuTable::Table t_gpu(N * 2, 2);
+
   u32 *deviceKey = coda::malloc<u32>(N);
   coda::randomArray(deviceKey, N);
+  setFirstKernel<<<1, N>>>(deviceKey);
+  printKernel<<<1, N>>>(deviceKey);
+
+  CUDA_CALL(cudaDeviceSynchronize());
+
   Debug() << "GO\n";
   t_gpu.update(deviceKey, N);
   Debug() << "END\n";
+
+  CUDA_CALL(cudaDeviceSynchronize());
 
   coda::free(deviceKey);
   return 0;
