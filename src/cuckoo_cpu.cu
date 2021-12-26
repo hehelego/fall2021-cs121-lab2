@@ -16,18 +16,7 @@ Table::~Table() {
 }
 
 void Table::clear() {
-  while (true) {
-    randomArray(_seeds, _m);
-    bool ok = true;
-    for (u32 i = 0; i < _m; i++) {
-      for (u32 j = 0; j < i; j++) ok &= (_seeds[i] != _seeds[j]);
-    }
-    if (!ok) {
-      randomArray(_seeds, _m);
-    } else {
-      break;
-    }
-  }
+  randomArray(_seeds, _m);
   _sz = 0;
   for (u32 i = 0; i < _m; i++) fill0xFF(_slots[i], _n);
 }

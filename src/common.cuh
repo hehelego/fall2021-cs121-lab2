@@ -73,13 +73,19 @@ inline T div_ceil(T a, T b) {
 #define CUDA_CALL(cuda_call)                                                                                                     \
   do {                                                                                                                           \
     auto e = (cuda_call);                                                                                                        \
-    if (e != cudaSuccess) Debug() << "[CUDA_ERR](" << __FILE__ << ":" << __LINE__ << ")\t" << cudaGetErrorString(e) << "\n";     \
+    if (e != cudaSuccess) {                                                                                                      \
+      Debug() << "[CUDA_ERR](" << __FILE__ << ":" << __LINE__ << ")\t" << cudaGetErrorString(e) << "\n";                         \
+      std::abort();                                                                                                              \
+    }                                                                                                                            \
   } while (0)
 
 #define CURAND_CALL(curand_call)                                                                                                 \
   do {                                                                                                                           \
     auto e = (curand_call);                                                                                                      \
-    if (e != CURAND_STATUS_SUCCESS) Debug() << "[CURNAD_ERR](" << __FILE__ << ":" << __LINE__ << ")\n";                          \
+    if (e != CURAND_STATUS_SUCCESS) {                                                                                            \
+      Debug() << "[CURNAD_ERR](" << __FILE__ << ":" << __LINE__ << ")\n";                                                        \
+      std::abort();                                                                                                              \
+    }                                                                                                                            \
   } while (0)
 
 // shortcut: fill bytes on CPU
@@ -109,24 +115,17 @@ inline void randomArray(u32 *d_array, u32 n) {
   CURAND_CALL(curandSetPseudoRandomGeneratorSeed(rng, randomSeed()));
   CURAND_CALL(curandGenerate(rng, d_array, n));
 }
-class CopyKind {
-  i32 _;
+using CopyKind = cudaMemcpyKind;
+// host to host. CPU to CPU
+const CopyKind H2H = cudaMemcpyHostToHost;
+// host to device. CPU to GPU
+const CopyKind H2D = cudaMemcpyHostToDevice;
+// device to hsot. GPU to CPU
+const CopyKind D2H = cudaMemcpyDeviceToHost;
+// device to device. GPU to GPU
+const CopyKind D2D = cudaMemcpyDeviceToDevice;
 
-public:
-  explicit CopyKind(i32 _) : _(_) {}
-  static const CopyKind H2H;
-  static const CopyKind H2D;
-  static const CopyKind D2H;
-  static const CopyKind D2D;
-  operator cudaMemcpyKind() const { return (cudaMemcpyKind)_; }
-};
-
-// shortcut: copy to DeviceSymbol memory (__constant__) memory
-template <typename T> inline void copyConst(T *dst, const T *src, u32 n, CopyKind kind = CopyKind::H2D) {
-  CUDA_CALL(cudaMemcpyToSymbol(dst, src, sizeof(T) * n, 0, kind));
-}
-
-// shortcut: free allocated memory on GPU
+// shortcut: copy memory across GPU and CPU
 template <typename T> inline void copy(T *dst, const T *src, u32 n, CopyKind kind) {
   CUDA_CALL(cudaMemcpy(dst, src, sizeof(T) * n, kind));
 }

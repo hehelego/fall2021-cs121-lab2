@@ -1,7 +1,15 @@
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message(NOTICE "[build type] debug mode on")
-    add_compile_options(-g)
-    add_link_options(-g)
+    add_compile_options(
+        -O0
+        -g
+        -lineinfo
+        -Xcompiler=-rdynamic
+    )
+    add_link_options(
+        -g
+        -rdynamic
+    )
     add_definitions(-D DEBUG)
 else()
     message(NOTICE "[build type] debug mode off")
