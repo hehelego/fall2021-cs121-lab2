@@ -85,24 +85,24 @@ void checkGpuTable() {
   return;
 }
 
-static __global__ void setFirstKernel(u32 *a) {
+static __global__ void setFirstKernel(u32 *a, u32 n) {
   u32 i = threadIdx.x + blockIdx.x * blockDim.x;
-  a[i] = a[0];
+  if (i < n) a[i] = a[0];
 }
-static __global__ void printKernel(u32 *a) {
+static __global__ void printKernel(u32 *a, u32 n) {
   u32 i = threadIdx.x + blockIdx.x * blockDim.x;
-  printf("%u\n", a[i]);
+  if (i < n) printf("%u\n", a[i]);
 }
 i32 main() {
   u32 k = 0;
   std::cin >> k;
-  const u32 N = 2 << k;
+  const u32 N = 1 << k;
   GpuTable::Table t_gpu(N * 2, 2);
 
   u32 *deviceKey = coda::malloc<u32>(N);
   coda::randomArray(deviceKey, N);
-  setFirstKernel<<<1, N>>>(deviceKey);
-  printKernel<<<1, N>>>(deviceKey);
+  printKernel<<< N>>10,1<<10 >>>(deviceKey,100);
+  Debug() << (N>>10)<<" x "<<(1<<10)<<"\n";
 
   CUDA_CALL(cudaDeviceSynchronize());
 
