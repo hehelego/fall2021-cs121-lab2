@@ -1,4 +1,7 @@
+bin/
 reference/
+.vscode/
+core
 
 ###### source:
 ###### https://github.com/github/gitignore

@@ -95,6 +95,7 @@ template <typename T> inline void fillZero(T *a, u32 n) { fill(a, n, 0x00u); }
 // shortcut: fill with 0xff bytes on CPU
 template <typename T> inline void fill0xFF(T *a, u32 n) { fill(a, n, 0xFFu); }
 
+
 // Get a random number from std::random_device, for seeding pseudo random number generator
 inline u32 randomSeed() {
   static std::random_device rand_dev;

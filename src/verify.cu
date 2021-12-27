@@ -31,7 +31,7 @@ void checkCpuTable() {
   u32 *key = new u32[N], *qry = new u32[N];
   u32 *res0 = new u32[N], *res1 = new u32[N];
 
-  auto f = [&]() {
+  // auto f = [&]() {
     randomArray(key, N), randomArray(qry, N);
 
     u32 *sqry = new u32[M];
@@ -43,10 +43,9 @@ void checkCpuTable() {
     t_cpu.update(key, N), t_stl.update(key, N);
     t_cpu.query(qry, res0, N), t_stl.query(qry, res1, N);
     bool cmp = std::equal(res0, res0 + N, res1, res1 + N);
-    assert(cmp);
-  };
-
-  time_func(f, 10);
+    if(!cmp) std::abort();
+  // };
+  // time_func(f, 10);
 
   delete[] key, delete[] qry;
   delete[] res0, delete[] res1;
@@ -63,46 +62,41 @@ void checkGpuTable() {
   u32 *hostResult = new u32[N], *hostGpuResult = new u32[N];
   u32 *deviceResult = coda::malloc<u32>(N);
 
-  auto f = [&]() {
-    randomArray(hostKey, N), randomArray(hostQry, N);
-    coda::copy(deviceKey, hostKey, N, coda::H2D), coda::copy(deviceQry, hostQry, N, coda::H2D);
-
-    coda::copy(hostKey, hostQry, M, coda::H2H);
-    coda::copy(deviceQry, hostKey, M, coda::H2D);
+  // auto f = [&]() {
+    coda::randomArray(deviceKey, N), coda::randomArray(deviceQry, N), coda::copy(deviceQry, deviceKey, M, coda::D2D);
+    coda::copy(hostKey, deviceKey, N, coda::D2H), coda::copy(hostQry, deviceQry, N, coda::D2H);
 
     t_gpu.clear(), t_stl.clear();
     t_gpu.update(deviceKey, N), t_stl.update(hostKey, N);
     t_gpu.query(deviceQry, deviceResult, N), t_stl.query(hostQry, hostResult, N);
     coda::copy(hostGpuResult, deviceResult, N, coda::D2H);
-    bool cmp = std::equal(hostGpuResult, hostGpuResult + N, hostResult, hostResult + N);
-    assert(cmp);
-  };
 
-  time_func(f, 10);
+    bool cmp = std::equal(hostGpuResult, hostGpuResult + N, hostResult, hostResult + N);
+    if(!cmp) std::abort();
+  // };
+  // time_func(f, 10);
 
   delete[] hostKey, delete[] hostQry, delete[] hostResult, delete[] hostGpuResult;
   coda::free(deviceKey), coda::free(deviceQry), coda::free(deviceResult);
   return;
 }
 
-static __global__ void setFirstKernel(u32 *a, u32 n) {
-  u32 i = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i < n) a[i] = a[0];
-}
-static __global__ void printKernel(u32 *a, u32 n) {
-  u32 i = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i < n) printf("%u\n", a[i]);
-}
-i32 main() {
+void checkBatchUpdate() {
+  // for k>=21, likely to trigger infinity rehash.
   u32 k = 0;
   std::cin >> k;
   const u32 N = 1 << k;
   GpuTable::Table t_gpu(N * 2, 2);
 
   u32 *deviceKey = coda::malloc<u32>(N);
+  u32 *hostKey = new u32[N];
   coda::randomArray(deviceKey, N);
-  printKernel<<< N>>10,1<<10 >>>(deviceKey,100);
-  Debug() << (N>>10)<<" x "<<(1<<10)<<"\n";
+  coda::copy(hostKey, deviceKey, N, coda::D2H);
+
+  // freopen("input","w",stdout);
+  // for(u32 i=0;i<N;i++) printf("%u ", hostKey[i]);
+  // fflush(stdout);
+
 
   CUDA_CALL(cudaDeviceSynchronize());
 
@@ -113,5 +107,12 @@ i32 main() {
   CUDA_CALL(cudaDeviceSynchronize());
 
   coda::free(deviceKey);
+  delete[] hostKey;
+  return;
+}
+
+int main(){
+  checkCpuTable();
+  checkGpuTable();
   return 0;
 }

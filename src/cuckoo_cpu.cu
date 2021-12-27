@@ -76,15 +76,15 @@ void Table::query(u32 *keys, u32 *result, u32 n) const {
   for (u32 i = 0; i < n; i++) result[i] = queryOnce(keys[i]);
 }
 
-//////////////////////////////
+////////////////////////////////////////////////////////////
 void UnorderedMap::clear() { table.clear(); }
 void UnorderedMap::update(u32 *keys, u32 n) {
   for (u32 i = 0; i < n; i++) {
-    if (!empty(keys[i])) table.insert(keys[i]);
+    if(!empty(keys[i])) table.insert(keys[i]);
   }
 }
 void UnorderedMap::query(u32 *keys, u32 *result, u32 n) const {
-  for (u32 i = 0; i < n; i++) result[i] = table.find(keys[i]) != table.end();
+  for (u32 i = 0; i < n; i++) result[i] = table.count(keys[i]);
 }
 
 } // namespace CpuTable

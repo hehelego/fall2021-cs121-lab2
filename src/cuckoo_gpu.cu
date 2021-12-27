@@ -1,4 +1,5 @@
 #include "cuckoo_gpu.cuh"
+#include "common.cuh"
 
 #include <utility>
 
