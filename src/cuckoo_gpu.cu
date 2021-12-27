@@ -1,5 +1,5 @@
-#include "cuckoo_gpu.cuh"
 #include "common.cuh"
+#include "cuckoo_gpu.cuh"
 
 #include <utility>
 
@@ -17,14 +17,14 @@ static __global__ void rollBackKernel(std::pair<u32, u32> *result, u32 n, u32 **
     if (!empty(final_table) && !empty(final_slot)) slots[final_table][final_slot] = EMPTY;
   }
 }
-static __global__ void updateKernel(u32 *keys,std::pair<u32, u32> *result, u32 n, u32 cap, u32 **slots,
-                                    const u32 *const seeds, u32 m, u32 threshold, u32 *counter) {
+static __global__ void updateKernel(u32 *keys, std::pair<u32, u32> *result, u32 n, u32 cap, u32 **slots, const u32 *const seeds,
+                                    u32 m, u32 threshold, u32 *counter) {
   u32 cachedSeeds[M_HASH_FUNCS];
   for (u32 i = 0; i < M_HASH_FUNCS; i++) cachedSeeds[i] = seeds[i];
 
   u32 i = threadIdx.x + blockIdx.x * blockDim.x;
   u32 key = 0, final_table = EMPTY, final_slot = EMPTY;
-  if (i < n ) {
+  if (i < n) {
     key = keys[i];
     for (u32 j = 0; !empty(key) && j < threshold; j++) {
       u32 jj = j % m;

@@ -16,7 +16,6 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_definitions(-D DEBUG)
 else()
     message(NOTICE "[build type] debug mode off")
-    add_compile_options(-O2)
 endif()
 
 

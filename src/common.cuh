@@ -45,7 +45,7 @@ struct Timer {
   Timer() {}
   inline void start() { _start = std::chrono::high_resolution_clock::now(); }
   inline void end() { _end = std::chrono::high_resolution_clock::now(); }
-  inline double time_in_second() const {
+  inline double deltaInSeconds() const {
     auto interval = _end - _start;
     return std::chrono::duration_cast<std::chrono::microseconds>(interval).count() / 1e6;
   }
@@ -95,7 +95,6 @@ template <typename T> inline void fillZero(T *a, u32 n) { fill(a, n, 0x00u); }
 // shortcut: fill with 0xff bytes on CPU
 template <typename T> inline void fill0xFF(T *a, u32 n) { fill(a, n, 0xFFu); }
 
-
 // Get a random number from std::random_device, for seeding pseudo random number generator
 inline u32 randomSeed() {
   static std::random_device rand_dev;
@@ -139,7 +138,7 @@ template <typename T> inline T *malloc(u32 n) {
 }
 
 // shortcut: free allocated memory on GPU
-template <typename T> inline void free(T *p) { CUDA_CALL(cudaFree(p)); }
+template <typename T> inline void free(T *d_p) { CUDA_CALL(cudaFree(d_p)); }
 
 // shortcut: fill bytes on GPU
 template <typename T> inline void fill(T *d_array, u32 n, u32 value) { CUDA_CALL(cudaMemset(d_array, value, sizeof(T) * n)); }

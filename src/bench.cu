@@ -7,19 +7,19 @@
 #include <set>
 #include <vector>
 
-double time_once(std::function<void()> func) {
+double timeOnce(std::function<void()> func) {
   static Timer timer;
   CUDA_CALL(cudaDeviceSynchronize());
   timer.start();
   func();
   CUDA_CALL(cudaDeviceSynchronize());
   timer.end();
-  return timer.time_in_second();
+  return timer.deltaInSeconds();
 }
-double time_func(std::function<void()> func, u32 runs) {
+double timeFunc(std::function<void()> func, u32 runs) {
   double s = 0;
-  for (u32 i = 0; i < runs; i++) s += time_once(func);
+  for (u32 i = 0; i < runs; i++) s += timeOnce(func);
   return s / runs;
 }
 
-int main(){ return 0; }
+i32 main() { return 0; }
