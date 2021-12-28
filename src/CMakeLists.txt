@@ -64,3 +64,10 @@ target_link_libraries(verify
     cuckoo_gpu
     cuckoo_cpu
 )
+# Executable target for file IO
+add_executable(run run.cu)
+target_link_libraries(run
+    common
+    cuckoo_gpu
+    cuckoo_cpu
+)
