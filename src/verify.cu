@@ -26,7 +26,7 @@ double timeFunc(std::function<void()> func, u32 runs) {
 
 void checkCpuTable() {
   const u32 N = 1 << 20;
-  const u32 M = 1 << 15;
+  const u32 M = 1 << 17;
   CpuTable::Table t_cpu(N * 2, 2);
   CpuTable::UnorderedMap t_stl;
 
@@ -59,7 +59,7 @@ void checkCpuTable() {
 }
 void checkGpuTable() {
   const u32 N = 1 << 20;
-  const u32 M = 1 << 15;
+  const u32 M = 1 << 17;
   GpuTable::Table t_gpu(N * 2, 2);
   CpuTable::UnorderedMap t_stl;
 
@@ -77,13 +77,10 @@ void checkGpuTable() {
     t_gpu.query(deviceQry, deviceResult, N), t_stl.query(hostQry, hostResult, N);
     coda::copy(hostGpuResult, deviceResult, N, coda::D2H);
 
-    CUDA_CALL(cudaDeviceSynchronize());
-
     for (u32 i = 0; i < N; i++) {
       if (bool(hostGpuResult[i]) != bool(hostResult[i])) {
-        Debug() << "[ERR: GPU cuckoo, STL unordered_map]" << hostQry[i] << " " << hostGpuResult[i] << " " << hostResult[i]
-                << "\n";
-        std::abort();
+        Debug() << "[ERR: GPU cuckoo, STL unordered_map]" << i << " " << hostQry[i] << " " << hostGpuResult[i] << " "
+                << hostResult[i] << "\n";
       }
     }
   };
@@ -110,18 +107,13 @@ void checkBatchUpdate() {
     std::ofstream input("input");
     for (u32 i = 0; i < N; i++) input << hostKey[i] << ' ';
   }
-
-  CUDA_CALL(cudaDeviceSynchronize());
   t_gpu.update(deviceKey, N);
-  CUDA_CALL(cudaDeviceSynchronize());
-
   coda::free(deviceKey);
   delete[] hostKey;
   return;
 }
 
 i32 main() {
-#if 1
   Debug() << "check CPU table start\n";
   checkCpuTable();
   Debug() << "check CPU table passed\n";
@@ -133,23 +125,5 @@ i32 main() {
   Debug() << "check update kernel start\n";
   checkBatchUpdate();
   Debug() << "check update kernel passed\n";
-#else
-  const u32 K = 24;
-  const u32 N = 1 << K;
-  u32 *hostKeys = new u32[N], *deviceKeys = coda::malloc<u32>(N);
-  {
-    std::ifstream input("input");
-    std::unordered_map<u32, u32> cnt;
-    for (u32 i = 0; i < N; i++) {
-      input >> hostKeys[i];
-      cnt[hostKeys[i]]++;
-      assert(cnt[hostKeys[i]] <= 2u);
-    }
-  }
-  coda::copy(deviceKeys, hostKeys, N, coda::H2D);
-  GpuTable::Table tbl(N * 2u, 2u);
-  tbl.update(deviceKeys, N);
-  delete[] hostKeys, coda::free(deviceKeys);
-#endif
   return 0;
 }

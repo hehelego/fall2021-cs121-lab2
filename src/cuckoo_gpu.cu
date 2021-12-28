@@ -18,10 +18,11 @@ static __global__ void rollBackKernel(std::pair<u32, u32> *result, u32 n, u32 **
   }
 }
 static __global__ void updateKernel(u32 *keys, std::pair<u32, u32> *result, u32 n, u32 cap, u32 **slots, const u32 *const seeds,
-                                    u32 m, u32 threshold, u32 *counter) {
+                                    u32 m, u32 threshold, u32 *failed) {
   u32 i = threadIdx.x + blockIdx.x * blockDim.x;
-  __shared__ u32 cachedSeeds[M_HASH_FUNCS];
-  if (i < m) cachedSeeds[i] = seeds[i];
+  __shared__ u32 cachedSeeds[M_HASH_FUNCS], block_failed;
+  if (threadIdx.x < m) cachedSeeds[threadIdx.x] = seeds[threadIdx.x];
+  if (threadIdx.x == 0) block_failed = 0;
   __syncthreads();
 
   u32 key = 0, final_table = EMPTY, final_slot = EMPTY;
@@ -34,7 +35,7 @@ static __global__ void updateKernel(u32 *keys, std::pair<u32, u32> *result, u32 
       key = atomicExch(&slots[jj][slot], key);
     }
     if (!empty(key)) {
-      atomicAdd(counter, 1);
+      atomicCAS(&block_failed, 0, 1);
       result[i].first = EMPTY;
       result[i].second = EMPTY;
     } else {
@@ -42,12 +43,13 @@ static __global__ void updateKernel(u32 *keys, std::pair<u32, u32> *result, u32 
       result[i].second = final_slot;
     }
   }
+  if (threadIdx.x == 0 && block_failed) atomicCAS(failed, 0, 1);
 }
 static __global__ void queryKernel(const u32 *keys, u32 *result, u32 n, u32 cap, u32 **const slots, const u32 *const seeds,
                                    u32 m) {
   u32 i = threadIdx.x + blockIdx.x * blockDim.x;
   __shared__ u32 cachedSeeds[M_HASH_FUNCS];
-  if (i < m) cachedSeeds[i] = seeds[i];
+  if (threadIdx.x < m) cachedSeeds[threadIdx.x] = seeds[threadIdx.x];
   __syncthreads();
 
   u32 key = 0;
@@ -82,7 +84,7 @@ Table::~Table() {
 }
 
 void Table::clear() {
-  coda::randomArray(_seeds, _m);
+  coda::randomArrayUnique(_seeds, _m);
   _sz = 0;
   coda::copy(_slotsHost, _slots, _m, coda::D2H);
   for (u32 i = 0; i < _m; i++) coda::fill0xFF(_slotsHost[i], _n);
@@ -104,20 +106,24 @@ void Table::rehash() {
 
 void Table::update(u32 *keys, u32 n) {
   u32 blocks = div_ceil(n, THREADS_PER_BLOCK);
-  u32 *d_counter = coda::malloc<u32>(1), counter = 0;
+  u32 *failed = coda::malloc<u32>(1), *host_failed = new u32;
   auto result = coda::malloc<std::pair<u32, u32>>(n);
   while (true) {
-    coda::fillZero(d_counter, 1);
-    updateKernel<<<blocks, THREADS_PER_BLOCK>>>(keys, result, n, _n, _slots, _seeds, _m, _threshold, d_counter);
-    coda::copy(&counter, d_counter, 1, coda::D2H);
-    if (counter > 0) {
+    coda::fillZero(failed, 1);
+    updateKernel<<<blocks, THREADS_PER_BLOCK>>>(keys, result, n, _n, _slots, _seeds, _m, _threshold, failed);
+    coda::copy(host_failed, failed, 1, coda::D2H);
+    if (*host_failed) {
       rollBackKernel<<<blocks, THREADS_PER_BLOCK>>>(result, n, _slots);
       rehash();
     } else {
       break;
     }
   }
-  coda::free(d_counter), coda::free(result);
+  coda::free(failed), delete host_failed, coda::free(result);
+
+  // coda::printArray(keys, n, "insert gpu keys ");
+  // coda::copy(_slotsHost, _slots, _m, coda::D2H);
+  // for (u32 i = 0; i < _m; i++) coda::printArray(_slotsHost[i], _n, "\tslot ");
 
   _sz += n;
 }
@@ -125,6 +131,9 @@ void Table::query(u32 *keys, u32 *result, u32 n) const {
   u32 blocks = div_ceil(n, THREADS_PER_BLOCK);
   coda::fillZero(result, n);
   queryKernel<<<blocks, THREADS_PER_BLOCK>>>(keys, result, n, _n, _slots, _seeds, _m);
+
+  // coda::printArray(keys, n, "query gpu keys ");
+  // coda::printArray(result, n, "query gpu result ");
 }
 
 } // namespace GpuTable

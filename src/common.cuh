@@ -9,6 +9,7 @@
 #include <curand_kernel.h>
 #include <iostream>
 #include <random>
+#include <string>
 #include <unordered_set>
 
 using u8 = std::uint8_t;
@@ -117,6 +118,12 @@ inline void randomArrayUnique(u32 *a, u32 n) {
   }
 }
 
+template <typename T> inline void printArray(const T *a, u32 n, const std::string prefix = "HostArray ") {
+  Debug() << prefix << '[';
+  for (u32 i = 0; i < n; i++) Debug() << std::hex << a[i] << (i + 1 == n ? "" : ", ");
+  Debug() << ']' << '\n';
+}
+
 // utilities: wrapper for common cuda calls
 namespace coda {
 using CopyKind = cudaMemcpyKind;
@@ -163,6 +170,13 @@ inline void randomArrayUnique(u32 *d_array, u32 n) {
   u32 *h_a = new u32[n];
   ::randomArrayUnique(h_a, n);
   coda::copy(d_array, h_a, n, coda::H2D);
+  delete[] h_a;
+}
+
+template <typename T> inline void printArray(const T *d_a, u32 n, const std::string prefix = "DeviceArray ") {
+  auto h_a = new T[n];
+  coda::copy(h_a, d_a, n, coda::D2H);
+  ::printArray(h_a, n, prefix);
   delete[] h_a;
 }
 } // namespace coda
