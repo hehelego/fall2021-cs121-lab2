@@ -62,7 +62,7 @@ void benchmark_task1() {
   coda::randomArrayUnique(d_keys, 1 << 24), coda::copy(h_keys, d_keys, 1 << 24, coda::D2H);
 
   Output() << "benchmark 1: insertion\n";
-  for (u32 i = 10; i < 24; i++) {
+  for (u32 i = 10; i <= 24; i++) {
     auto gpu_time = timeFunc([&]() { gpu_table.clear(); }, [&]() { gpu_table.update(d_keys, 1 << i); }, []() {});
 
     Output() << std::fixed << std::setprecision(6) << i << "\t\t" << gpu_time << "\n";
