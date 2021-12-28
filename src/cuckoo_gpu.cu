@@ -4,6 +4,9 @@
 #include <utility>
 
 namespace GpuTable {
+bool TOO_MUCH_REHASH = false;
+u32 REHASH_COUNT = 0;
+
 // test whether x is 0xFFFFFFFF
 static __device__ inline bool empty(u32 x) { return (~x) == 0u; }
 static const u32 EMPTY = (~0u);
@@ -68,7 +71,7 @@ static inline u32 queryMaxThreadsPerBlock() {
   return dp.maxThreadsPerBlock;
 }
 Table::Table(u32 capacity, u32 subtables, double threshold_coeff) : THREADS_PER_BLOCK(queryMaxThreadsPerBlock()) {
-  _n = capacity * 0.8, _m = subtables;
+  _n = capacity, _m = subtables;
   _threshold = u32(binaryLength(_n) * threshold_coeff);
   _slots = coda::malloc<u32 *>(_m);
   for (u32 i = 0; i < _m; i++) _slotsHost[i] = coda::malloc<u32>(_n);
@@ -93,6 +96,10 @@ void Table::clear() {
 
 void Table::rehash() {
   Debug() << "GPU TABLE: rehash\n";
+  REHASH_COUNT++;
+  if (REHASH_COUNT > REHASH_LIMIT) TOO_MUCH_REHASH = true;
+  if (TOO_MUCH_REHASH) return;
+
   u32 *backup[M_HASH_FUNCS];
   coda::copy(_slotsHost, _slots, _m, coda::D2H);
   for (u32 i = 0; i < _m; i++) {
@@ -109,7 +116,7 @@ void Table::update(u32 *keys, u32 n) {
   u32 blocks = div_ceil(n, THREADS_PER_BLOCK);
   u32 *failed = coda::malloc<u32>(1), *host_failed = new u32;
   auto result = coda::malloc<std::pair<u32, u32>>(n);
-  while (true) {
+  while (true && !TOO_MUCH_REHASH) {
     coda::fillZero(failed, 1);
     updateKernel<<<blocks, THREADS_PER_BLOCK>>>(keys, result, n, _n, _slots, _seeds, _m, _threshold, failed);
     coda::copy(host_failed, failed, 1, coda::D2H);

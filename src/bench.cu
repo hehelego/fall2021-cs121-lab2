@@ -1,5 +1,4 @@
 #include "common.cuh"
-#include "cuckoo_cpu.cuh"
 #include "cuckoo_gpu.cuh"
 
 #include <functional>
@@ -7,49 +6,74 @@
 #include <set>
 #include <vector>
 
-double timeOnce(std::function<void()> func) {
-  static Timer timer;
-  CUDA_CALL(cudaDeviceSynchronize());
-  timer.start();
-  func();
-  CUDA_CALL(cudaDeviceSynchronize());
-  timer.end();
-  return timer.delta_ms();
+struct TimeResult {
+  double dt_ms; // elapsed time in microseconds (1e-6 second)
+  bool valid;   // too much rehash, does not terminate
+  TimeResult(double t, bool v) : dt_ms(t), valid(v) {}
+  static TimeResult valid_time(double t) { return TimeResult(t, true); }
+  static TimeResult does_not_terminate() { return TimeResult(0, false); }
+};
+inline TimeResult operator+(const TimeResult &tr1, const TimeResult &tr2) {
+  return TimeResult(tr1.dt_ms + tr2.dt_ms, tr1.valid && tr2.valid);
 }
-double timeFunc(std::function<void()> pre, std::function<void()> func, std::function<void()> post, u32 runs = 5) {
-  double s = 0;
+template <typename T> inline TimeResult operator*(const TimeResult &tr1, const T k) {
+  return TimeResult(tr1.dt_ms * k, tr1.valid);
+}
+template <typename T> inline TimeResult operator*(const T k, const TimeResult &tr1) {
+  return TimeResult(tr1.dt_ms * k, tr1.valid);
+}
+template <typename T> inline TimeResult operator/(const TimeResult &tr1, const T k) {
+  return TimeResult(tr1.dt_ms / k, tr1.valid);
+}
+inline std::ostream &operator<<(std::ostream &os, const TimeResult &tr) {
+  if (tr.valid) {
+    os << "Time(" << tr.dt_ms << ")";
+  } else {
+    os << "InvalidTime";
+  }
+  return os;
+}
+
+TimeResult timeOnce(std::function<void()> func) {
+  static Timer timer;
+  GpuTable::REHASH_COUNT = 0;
+  CUDA_CALL(cudaDeviceSynchronize()), timer.start();
+  func();
+  CUDA_CALL(cudaDeviceSynchronize()), timer.end();
+  if (GpuTable::TOO_MUCH_REHASH) return TimeResult::does_not_terminate();
+  TimeResult::valid_time(timer.delta_ms());
+}
+TimeResult timeFunc(std::function<void()> pre, std::function<void()> func, std::function<void()> post, u32 runs = 5) {
+  TimeResult total_cost = TimeResult::valid_time(0);
   for (u32 i = 0; i < runs; i++) {
     pre();
-    s += timeOnce(func);
+    total_cost = total_cost + timeOnce(func);
     post();
   }
-  return s / runs;
+  return total_cost / runs;
 }
 
 void benchmark_task1() {
   GpuTable::Table gpu_table(1 << 25, 2);
-  CpuTable::UnorderedMap cpu_table;
 
   u32 *h_keys = new u32[1 << 24], *d_keys = coda::malloc<u32>(1 << 24);
   coda::randomArrayUnique(d_keys, 1 << 24), coda::copy(h_keys, d_keys, 1 << 24, coda::D2H);
 
   Output() << "benchmark 1: insertion\n";
   for (u32 i = 10; i < 24; i++) {
-    auto cpu_time = timeFunc([&]() { cpu_table.clear(); }, [&]() { cpu_table.update(h_keys, 1 << i); }, []() {});
     auto gpu_time = timeFunc([&]() { gpu_table.clear(); }, [&]() { gpu_table.update(d_keys, 1 << i); }, []() {});
 
-    Output() << std::fixed << std::setprecision(6) << i << "\t\t" << cpu_time << "\t\t" << gpu_time << "\n";
+    Output() << std::fixed << std::setprecision(6) << i << "\t\t" << gpu_time << "\n";
   }
 
   delete[] h_keys, coda::free(d_keys);
 }
 void benchmark_task2() {
   GpuTable::Table gpu_table(1 << 25, 2);
-  CpuTable::UnorderedMap cpu_table;
 
   u32 *h_keys = new u32[1 << 24], *d_keys = coda::malloc<u32>(1 << 24);
   coda::randomArrayUnique(d_keys, 1 << 24), coda::copy(h_keys, d_keys, 1 << 24, coda::D2H);
-  cpu_table.update(h_keys, 1 << 24), gpu_table.update(d_keys, 1 << 24);
+  gpu_table.update(d_keys, 1 << 24);
   delete[] h_keys, coda::free(d_keys);
 
   std::mt19937 rng(randomSeed());
@@ -63,10 +87,9 @@ void benchmark_task2() {
     for (u32 j = 0; j < cnt; j++) h_qrys[j] = h_keys[rng() % (1 << 24)];
     coda::copy(d_qrys, h_qrys, 1 << 24, coda::H2D);
 
-    auto cpu_time = timeFunc([]() {}, [&]() { cpu_table.query(h_qrys, h_res, 1 << 24); }, []() {});
     auto gpu_time = timeFunc([]() {}, [&]() { gpu_table.query(d_qrys, d_res, 1 << 24); }, []() {});
 
-    Output() << std::fixed << std::setprecision(6) << i << "\t\t" << cpu_time << "\t\t" << gpu_time << "\n";
+    Output() << std::fixed << std::setprecision(6) << i << "\t\t" << gpu_time << "\n";
   }
 
   delete[] h_qrys, delete[] h_res, coda::free(d_qrys), coda::free(d_res);
@@ -78,19 +101,13 @@ void benchmark_task3() {
   Output() << "benchmark 3: insertion with high load factor\n";
   for (u32 i = 1; i <= 10; i++) {
     u32 cnt = (1 << 24) * i / 10;
-    auto cpu_time = timeFunc([]() {},
-                             [&]() {
-                               CpuTable::UnorderedMap cpu_table;
-                               cpu_table.update(h_keys, 1 << 24);
-                             },
-                             []() {});
     auto gpu_time = timeFunc([]() {},
                              [&]() {
                                GpuTable::Table gpu_table((1 << 24) + cnt, 2);
                                gpu_table.update(d_keys, 1 << 24);
                              },
                              []() {});
-    Output() << std::fixed << std::setprecision(6) << i << "\t\t" << cpu_time << "\t\t" << gpu_time << "\n";
+    Output() << std::fixed << std::setprecision(6) << i << "\t\t" << gpu_time << "\n";
   }
 
   // Out Of Memory or do not terminate

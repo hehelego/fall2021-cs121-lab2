@@ -6,6 +6,9 @@ namespace GpuTable {
 
 // maximum number of subtables to use
 const u32 M_HASH_FUNCS = 5;
+const u32 REHASH_LIMIT = 50;
+extern bool TOO_MUCH_REHASH;
+extern u32 REHASH_COUNT;
 
 class Table {
   u32 *_seeds;
@@ -17,7 +20,7 @@ class Table {
   void rehash();
 
 public:
-  Table(u32 capacity, u32 subtables=2, double threshold_coeff=4);
+  Table(u32 capacity, u32 subtables = 2, double threshold_coeff = 4);
   ~Table();
   void clear();
   void update(u32 *keys, u32 n);
