@@ -67,7 +67,7 @@ static inline u32 queryMaxThreadsPerBlock() {
   return dp.maxThreadsPerBlock;
 }
 Table::Table(u32 capacity, u32 subtables, double threshold_coeff) : THREADS_PER_BLOCK(queryMaxThreadsPerBlock()) {
-  _n = capacity, _m = subtables;
+  _n = div_ceil(capacity, subtables), _m = subtables;
   _threshold = u32(binaryLength(_n) * threshold_coeff);
   _slots = coda::malloc<u32 *>(_m);
   for (u32 i = 0; i < _m; i++) _slotsHost[i] = coda::malloc<u32>(_n);
@@ -120,20 +120,11 @@ void Table::update(u32 *keys, u32 n) {
     }
   }
   coda::free(failed), delete host_failed, coda::free(result);
-
-  // coda::printArray(keys, n, "insert gpu keys ");
-  // coda::copy(_slotsHost, _slots, _m, coda::D2H);
-  // for (u32 i = 0; i < _m; i++) coda::printArray(_slotsHost[i], _n, "\tslot ");
-
   _sz += n;
 }
 void Table::query(u32 *keys, u32 *result, u32 n) const {
   u32 blocks = div_ceil(n, THREADS_PER_BLOCK);
   coda::fillZero(result, n);
   queryKernel<<<blocks, THREADS_PER_BLOCK>>>(keys, result, n, _n, _slots, _seeds, _m);
-
-  // coda::printArray(keys, n, "query gpu keys ");
-  // coda::printArray(result, n, "query gpu result ");
 }
-
 } // namespace GpuTable

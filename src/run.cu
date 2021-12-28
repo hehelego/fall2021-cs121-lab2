@@ -36,7 +36,8 @@ int main(int argc, const char *argv[]) {
         << "\n\t"
         << "-query file: The number of queries on the first line. List all the queries on the second line, separated by space."
         << "\n\t"
-        << "-result file: A line of space separated 0/1 sequence on a single line. (0,not found)/(1,found)";
+        << "-result file: A line of space separated 0/1 sequence on a single line. (0,not found)/(1,found)"
+        << "\n";
     return 1;
   }
   const std::string key_file(argv[1]);

@@ -18,9 +18,12 @@ double timeOnce(std::function<void()> func) {
   timer.end();
   return timer.deltaInSeconds();
 }
-double timeFunc(std::function<void()> func, u32 runs) {
+double timeFunc(std::function<void()> pre, std::function<void()> func, u32 runs) {
   double s = 0;
-  for (u32 i = 0; i < runs; i++) s += timeOnce(func);
+  for (u32 i = 0; i < runs; i++) {
+    pre();
+    s += timeOnce(func);
+  }
   return s / runs;
 }
 
@@ -46,12 +49,12 @@ void checkCpuTable() {
     t_cpu.query(qry, res0, N), t_stl.query(qry, res1, N);
     for (u32 i = 0; i < N; i++) {
       if (bool(res0[i]) != bool(res1[i])) {
-        Debug() << "[ERR: CPU cuckoo, STL unordered_map] " << qry[i] << " " << res0[i] << " " << res1[i] << "\n";
+        Output() << "[ERR: CPU cuckoo, STL unordered_map] " << qry[i] << " " << res0[i] << " " << res1[i] << "\n";
         std::abort();
       }
     }
   };
-  timeFunc(f, 10);
+  timeFunc([]() {}, f, 10);
 
   delete[] key, delete[] qry;
   delete[] res0, delete[] res1;
@@ -79,12 +82,12 @@ void checkGpuTable() {
 
     for (u32 i = 0; i < N; i++) {
       if (bool(hostGpuResult[i]) != bool(hostResult[i])) {
-        Debug() << "[ERR: GPU cuckoo, STL unordered_map]" << i << " " << hostQry[i] << " " << hostGpuResult[i] << " "
-                << hostResult[i] << "\n";
+        Output() << "[ERR: GPU cuckoo, STL unordered_map]" << i << " " << hostQry[i] << " " << hostGpuResult[i] << " "
+                 << hostResult[i] << "\n";
       }
     }
   };
-  timeFunc(f, 10);
+  timeFunc([]() {}, f, 10);
 
   delete[] hostKey, delete[] hostQry, delete[] hostResult, delete[] hostGpuResult;
   coda::free(deviceKey), coda::free(deviceQry), coda::free(deviceResult);
@@ -96,34 +99,34 @@ void checkGpuTable() {
 void checkBatchUpdate() {
   const u32 K = 24;
   const u32 N = 1 << K;
+
   GpuTable::Table t_gpu(N * 2, 2);
-
   u32 *deviceKey = coda::malloc<u32>(N);
-  u32 *hostKey = new u32[N];
-  coda::randomArrayUnique(deviceKey, N);
-  coda::copy(hostKey, deviceKey, N, coda::D2H);
-
-  {
-    std::ofstream input("input");
-    for (u32 i = 0; i < N; i++) input << hostKey[i] << ' ';
-  }
-  t_gpu.update(deviceKey, N);
+  auto cost = timeFunc(
+      [&]() {
+        coda::randomArrayUnique(deviceKey, N);
+        t_gpu.clear();
+      },
+      [&]() { t_gpu.update(deviceKey, N); }, 10);
+  Output() << "insert cost: " << cost << "\n";
+  cost = timeFunc([]() {}, [&]() { coda::randomArrayUnique(deviceKey, N); }, 20);
+  Output() << "generate cost: " << cost << "\n";
   coda::free(deviceKey);
-  delete[] hostKey;
   return;
 }
+void checkRandomUnique() {}
 
 i32 main() {
-  Debug() << "check CPU table start\n";
+  Output() << "check CPU table start\n";
   checkCpuTable();
-  Debug() << "check CPU table passed\n";
+  Output() << "check CPU table passed\n";
 
-  Debug() << "check GPU table start\n";
+  Output() << "check GPU table start\n";
   checkGpuTable();
-  Debug() << "check GPU table passed\n";
+  Output() << "check GPU table passed\n";
 
-  Debug() << "check update kernel start\n";
+  Output() << "check update kernel start\n";
   checkBatchUpdate();
-  Debug() << "check update kernel passed\n";
+  Output() << "check update kernel passed\n";
   return 0;
 }

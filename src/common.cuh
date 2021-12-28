@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -166,10 +167,22 @@ inline void randomArray(u32 *d_array, u32 n) {
   CURAND_CALL(curandGenerate(rng, d_array, n));
 }
 // DEVICE random array consists of unique random numbers on device
-inline void randomArrayUnique(u32 *d_array, u32 n) {
+inline void randomArrayUnique(u32 *d_a, u32 n) {
   u32 *h_a = new u32[n];
-  ::randomArrayUnique(h_a, n);
-  coda::copy(d_array, h_a, n, coda::H2D);
+  coda::randomArray(d_a, n);
+  coda::copy(h_a, d_a, n, coda::D2H);
+
+  std::sort(h_a, h_a + n);
+  u32 *end = std::unique(h_a, h_a + n);
+  std::mt19937 rng(::randomSeed());
+  while (end != h_a + n) {
+    u32 x = 0;
+    do x = rng();
+    while (std::binary_search(h_a, end, x));
+    *end = x;
+    end++;
+  }
+  coda::copy(d_a, h_a, n, coda::H2D);
   delete[] h_a;
 }
 

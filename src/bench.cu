@@ -31,7 +31,7 @@ void benchmark_task1() {
   CpuTable::UnorderedMap cpu_table;
 
   u32 *h_keys = new u32[1 << 24], *d_keys = coda::malloc<u32>(1 << 24);
-  randomArrayUnique(h_keys, 1 << 24), coda::copy(d_keys, h_keys, 1 << 24, coda::H2D);
+  coda::randomArrayUnique(d_keys, 1 << 24), coda::copy(h_keys, d_keys, 1 << 24, coda::D2H);
 
   Output() << "benchmark 1: insertion\n";
   for (u32 i = 10; i < 24; i++) {
@@ -48,7 +48,7 @@ void benchmark_task2() {
   CpuTable::UnorderedMap cpu_table;
 
   u32 *h_keys = new u32[1 << 24], *d_keys = coda::malloc<u32>(1 << 24);
-  randomArrayUnique(h_keys, 1 << 24), coda::copy(d_keys, h_keys, 1 << 24, coda::H2D);
+  coda::randomArrayUnique(d_keys, 1 << 24), coda::copy(h_keys, d_keys, 1 << 24, coda::D2H);
   cpu_table.update(h_keys, 1 << 24), gpu_table.update(d_keys, 1 << 24);
   delete[] h_keys, coda::free(d_keys);
 
@@ -72,9 +72,8 @@ void benchmark_task2() {
   delete[] h_qrys, delete[] h_res, coda::free(d_qrys), coda::free(d_res);
 }
 void benchmark_task3() {
-
   u32 *h_keys = new u32[1 << 24], *d_keys = coda::malloc<u32>(1 << 24);
-  randomArrayUnique(h_keys, 1 << 24), coda::copy(d_keys, h_keys, 1 << 24, coda::H2D);
+  coda::randomArrayUnique(d_keys, 1 << 24), coda::copy(h_keys, d_keys, 1 << 24, coda::D2H);
 
   Output() << "benchmark 3: insertion with high load factor\n";
   for (u32 i = 1; i <= 10; i++) {
@@ -95,50 +94,52 @@ void benchmark_task3() {
   }
 
   // Out Of Memory or do not terminate
-  // {
-  //   u32 cnt = (1 << 24) * 1 / 100;
-  //   auto gpu_time = timeFunc([]() {},
-  //                            [&]() {
-  //                              GpuTable::Table gpu_table((1 << 24) + cnt, 2);
-  //                              gpu_table.update(d_keys, 1 << 24);
-  //                            },
-  //                            []() {});
-  //   Output() << std::fixed << std::setprecision(6) << "1.01" << "\t\t" << gpu_time << "\n";
-  // }
+  {
+    u32 cnt = (1 << 24) * 1 / 100;
+    auto gpu_time = timeFunc([]() {},
+                             [&]() {
+                               GpuTable::Table gpu_table((1 << 24) + cnt, 2);
+                               gpu_table.update(d_keys, 1 << 24);
+                             },
+                             []() {});
+    Output() << std::fixed << std::setprecision(6) << "1.01"
+             << "\t\t" << gpu_time << "\n";
+  }
 
   // Out Of Memory or do not terminate
-  // {
-  //   u32 cnt = (1 << 24) * 2 / 100;
-  //   auto gpu_time = timeFunc([]() {},
-  //                            [&]() {
-  //                              GpuTable::Table gpu_table((1 << 24) + cnt, 2);
-  //                              gpu_table.update(d_keys, 1 << 24);
-  //                            },
-  //                            []() {});
-  //   Output() << std::fixed << std::setprecision(6) << "1.01" << "\t\t" << gpu_time << "\n";
-  // }
+  {
+    u32 cnt = (1 << 24) * 2 / 100;
+    auto gpu_time = timeFunc([]() {},
+                             [&]() {
+                               GpuTable::Table gpu_table((1 << 24) + cnt, 2);
+                               gpu_table.update(d_keys, 1 << 24);
+                             },
+                             []() {});
+    Output() << std::fixed << std::setprecision(6) << "1.02"
+             << "\t\t" << gpu_time << "\n";
+  }
 
   // Out Of Memory or do not terminate
-  // {
-  //   u32 cnt = (1 << 24) * 5 / 100;
-  //   auto gpu_time = timeFunc([]() {},
-  //                            [&]() {
-  //                              GpuTable::Table gpu_table((1 << 24) + cnt, 2);
-  //                              gpu_table.update(d_keys, 1 << 24);
-  //                            },
-  //                            []() {});
-  //   Output() << std::fixed << std::setprecision(6) << "1.01" << "\t\t" << gpu_time << "\n";
-  // }
+  {
+    u32 cnt = (1 << 24) * 5 / 100;
+    auto gpu_time = timeFunc([]() {},
+                             [&]() {
+                               GpuTable::Table gpu_table((1 << 24) + cnt, 2);
+                               gpu_table.update(d_keys, 1 << 24);
+                             },
+                             []() {});
+    Output() << std::fixed << std::setprecision(6) << "1.05"
+             << "\t\t" << gpu_time << "\n";
+  }
   delete[] h_keys, coda::free(d_keys);
 }
 
 void benchmark_task4() {
-
   u32 *h_keys = new u32[1 << 24], *d_keys = coda::malloc<u32>(1 << 24);
-  randomArrayUnique(h_keys, 1 << 24), coda::copy(d_keys, h_keys, 1 << 24, coda::H2D);
+  coda::randomArrayUnique(d_keys, 1 << 24), coda::copy(h_keys, d_keys, 1 << 24, coda::D2H);
 
   Output() << "benchmark 4: eviction chain limit\n";
-  for (double i = 1; i < 8; i += 0.2) {
+  for (double i = 1; i < 8; i += 0.5) {
     auto gpu_time = timeFunc([]() {},
                              [&]() {
                                GpuTable::Table gpu_table(1 << 25, 2, i);

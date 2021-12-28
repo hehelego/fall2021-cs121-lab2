@@ -16,7 +16,7 @@ Table::~Table() {
 }
 
 void Table::clear() {
-  randomArray(_seeds, _m);
+  randomArrayUnique(_seeds, _m);
   _sz = 0;
   for (u32 i = 0; i < _m; i++) fill0xFF(_slots[i], _n);
 }
