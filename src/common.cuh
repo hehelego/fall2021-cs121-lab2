@@ -160,11 +160,9 @@ inline void randomArray(u32 *d_array, u32 n) {
 }
 // DEVICE random array consists of unique random numbers on device
 inline void randomArrayUnique(u32 *d_array, u32 n) {
-  auto d_buf = coda::malloc(n * 2), d_uniq = coda::malloc(n * 2);
-  coda::randomArray(d_buf);
-  thrust::unique_copy(d_buf, d_buf + n * 2, d_uniq);
-  coda::copy(d_array, d_uniq, n);
-  coda::free(d_buf), coda::free(d_uniq);
+  u32 *h_a = new u32[n];
+  ::randomArrayUnique(h_a, n);
+  coda::copy(d_array, h_a, n);
 }
 } // namespace coda
 

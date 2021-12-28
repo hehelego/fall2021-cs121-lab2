@@ -23,12 +23,10 @@ else()
 endif()
 
 ###
-### Dependencies: CUDA::curand, thrust
+### Dependencies: CUDA::curand
 ###
 
 find_package(CUDAToolkit)
-find_package(Thrust REQUIRED CONFIG)
-thrust_create_target(Thrust)
 
 ###
 ### Libraries
@@ -38,7 +36,6 @@ thrust_create_target(Thrust)
 add_library(common common.cu)
 target_link_libraries(common
     CUDA::curand
-    Thrust
 )
 
 # Library for CuckooHashTable on GPU(device)
