@@ -153,9 +153,17 @@ Therefore, we can creat a set of hash functions by seeding \emph{xxhash32} with 
 %%%%% appendix page %%%%%
 \appendix
 
+\reportSection{Fun Facts}
+\begin{itemize}
+   \item According to \url{https://developer.nvidia.com/blog/inside-pascal/}, atomic operations are optimized for global memory not the shared memory since Kepler SM architecture.\\
+      However, we get neither a boost nor a degrade in performance when testing our program on RTX 2080 Ti with Turing architecture SM.
+\end{itemize}
+\pagebreak
+
 \printbibliography[
 	heading=bibintoc,
 	title={bibliography}
 ]
+
 
 \end{document}

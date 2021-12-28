@@ -36,12 +36,14 @@ inline std::ostream &operator<<(std::ostream &os, const TimeResult &tr) {
 
 TimeResult timeOnce(std::function<void()> func) {
   static Timer timer;
-  GpuTable::REHASH_COUNT = 0;
-  CUDA_CALL(cudaDeviceSynchronize()), timer.start();
+  GpuTable::REHASH_COUNT = 0, GpuTable::TOO_MUCH_REHASH = false;
+  CUDA_CALL(cudaDeviceSynchronize());
+  timer.start();
   func();
-  CUDA_CALL(cudaDeviceSynchronize()), timer.end();
+  CUDA_CALL(cudaDeviceSynchronize());
+  timer.end();
   if (GpuTable::TOO_MUCH_REHASH) return TimeResult::does_not_terminate();
-  TimeResult::valid_time(timer.delta_ms());
+  return TimeResult::valid_time(timer.delta_ms());
 }
 TimeResult timeFunc(std::function<void()> pre, std::function<void()> func, std::function<void()> post, u32 runs = 5) {
   TimeResult total_cost = TimeResult::valid_time(0);

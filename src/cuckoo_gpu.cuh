@@ -6,7 +6,7 @@ namespace GpuTable {
 
 // maximum number of subtables to use
 const u32 M_HASH_FUNCS = 5;
-const u32 REHASH_LIMIT = 50;
+const u32 REHASH_LIMIT = 500;
 extern bool TOO_MUCH_REHASH;
 extern u32 REHASH_COUNT;
 
