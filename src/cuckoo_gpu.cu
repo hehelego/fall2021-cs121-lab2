@@ -19,10 +19,11 @@ static __global__ void rollBackKernel(std::pair<u32, u32> *result, u32 n, u32 **
 }
 static __global__ void updateKernel(u32 *keys, std::pair<u32, u32> *result, u32 n, u32 cap, u32 **slots, const u32 *const seeds,
                                     u32 m, u32 threshold, u32 *counter) {
-  u32 cachedSeeds[M_HASH_FUNCS];
-  for (u32 i = 0; i < M_HASH_FUNCS; i++) cachedSeeds[i] = seeds[i];
-
   u32 i = threadIdx.x + blockIdx.x * blockDim.x;
+  __shared__ u32 cachedSeeds[M_HASH_FUNCS];
+  if (i < m) cachedSeeds[i] = seeds[i];
+  __syncthreads();
+
   u32 key = 0, final_table = EMPTY, final_slot = EMPTY;
   if (i < n) {
     key = keys[i];
@@ -44,8 +45,10 @@ static __global__ void updateKernel(u32 *keys, std::pair<u32, u32> *result, u32 
 }
 static __global__ void queryKernel(const u32 *keys, u32 *result, u32 n, u32 cap, u32 **const slots, const u32 *const seeds,
                                    u32 m) {
-  u32 cachedSeeds[M_HASH_FUNCS];
-  for (u32 i = 0; i < M_HASH_FUNCS; i++) cachedSeeds[i] = seeds[i];
+  u32 i = threadIdx.x + blockIdx.x * blockDim.x;
+  __shared__ u32 cachedSeeds[M_HASH_FUNCS];
+  if (i < m) cachedSeeds[i] = seeds[i];
+  __syncthreads();
 
   u32 i = threadIdx.x + blockIdx.x * blockDim.x;
   u32 key = 0;
@@ -88,8 +91,7 @@ void Table::clear() {
 
 void Table::rehash() {
   Debug() << "GPU TABLE: rehash\n";
-  u32 *backup[M_HASH_FUNCS];
-  coda::copy(_slotsHost, _slots, _m, coda::D2H);
+  u32 *backup[M_HASH_FUNCS] coda::copy(_slotsHost, _slots, _m, coda::D2H);
   for (u32 i = 0; i < _m; i++) {
     backup[i] = _slotsHost[i];
     _slotsHost[i] = coda::malloc<u32>(_n);

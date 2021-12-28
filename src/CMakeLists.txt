@@ -1,3 +1,7 @@
+###
+### compiling&linking options
+###
+
 # Enable cuda device debugging for Debug build.
 # Enable optimization for Release build.
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -18,17 +22,36 @@ else()
     message(NOTICE "[build type] debug mode off")
 endif()
 
+###
+### Dependencies: CUDA::curand, thrust
+###
+
+find_package(CUDAToolkit)
+find_package(Thrust REQUIRED CONFIG)
+thrust_create_target(Thrust)
+
+###
+### Libraries
+###
 
 # Library for utilities. Depends on CUDA::curand
 add_library(common common.cu)
-find_package(CUDAToolkit)
-target_link_libraries(common CUDA::curand)
+target_link_libraries(common
+    CUDA::curand
+    Thrust
+)
+
 # Library for CuckooHashTable on GPU(device)
 add_library(cuckoo_gpu cuckoo_gpu.cu)
 target_link_libraries(cuckoo_gpu common)
+
 # Library for CuckooHashTable on CPU(host)
 add_library(cuckoo_cpu cuckoo_cpu.cu)
 target_link_libraries(cuckoo_cpu common)
+
+###
+### Executables
+###
 
 # Executable target for performance benchmarking
 add_executable(bench bench.cu)

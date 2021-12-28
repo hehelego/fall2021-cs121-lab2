@@ -9,6 +9,7 @@
 #include <curand_kernel.h>
 #include <iostream>
 #include <random>
+#include <set>
 
 using u8 = std::uint8_t;
 using i8 = std::int8_t;
@@ -100,21 +101,24 @@ inline u32 randomSeed() {
   static std::random_device rand_dev;
   return rand_dev();
 }
-// random array on device
+// HOST random array
 inline void randomArray(u32 *a, u32 n) {
   std::mt19937 rng(randomSeed());
   for (u32 i = 0; i < n; i++) a[i] = rng();
 }
+// HOST random array consists of unique random numbers
+inline void randomArrayUnique(u32 *a, u32 n) {
+  std::mt19937 rng(randomSeed());
+  std::set<u32> exists;
+  for (u32 i = 0; i < n; i++) {
+    do a[i] = rng();
+    while (exists.count(a[i]));
+    exists.insert(a[i]);
+  }
+}
 
 // utilities: wrapper for common cuda calls
 namespace coda {
-// random array on device
-inline void randomArray(u32 *d_array, u32 n) {
-  curandGenerator_t rng;
-  CURAND_CALL(curandCreateGenerator(&rng, CURAND_RNG_PSEUDO_MT19937));
-  CURAND_CALL(curandSetPseudoRandomGeneratorSeed(rng, randomSeed()));
-  CURAND_CALL(curandGenerate(rng, d_array, n));
-}
 using CopyKind = cudaMemcpyKind;
 // host to host. CPU to CPU
 const CopyKind H2H = cudaMemcpyHostToHost;
@@ -146,6 +150,22 @@ template <typename T> inline void fill(T *d_array, u32 n, u32 value) { CUDA_CALL
 template <typename T> inline void fillZero(T *d_array, u32 n) { fill(d_array, n, 0x00u); }
 // shortcut: fill with 0xff bytes on GPU
 template <typename T> inline void fill0xFF(T *d_array, u32 n) { fill(d_array, n, 0xFFu); }
+
+// DEVICE random array on device
+inline void randomArray(u32 *d_array, u32 n) {
+  curandGenerator_t rng;
+  CURAND_CALL(curandCreateGenerator(&rng, CURAND_RNG_PSEUDO_MT19937));
+  CURAND_CALL(curandSetPseudoRandomGeneratorSeed(rng, randomSeed()));
+  CURAND_CALL(curandGenerate(rng, d_array, n));
+}
+// DEVICE random array consists of unique random numbers on device
+inline void randomArrayUnique(u32 *d_array, u32 n) {
+  auto d_buf = coda::malloc(n * 2), d_uniq = coda::malloc(n * 2);
+  coda::randomArray(d_buf);
+  thrust::unique_copy(d_buf, d_buf + n * 2, d_uniq);
+  coda::copy(d_array, d_uniq, n);
+  coda::free(d_buf), coda::free(d_uniq);
+}
 } // namespace coda
 
 __host__ __device__ u32 xxHash32(u32 seed, u32 value);

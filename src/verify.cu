@@ -34,7 +34,7 @@ void checkCpuTable() {
   u32 *res0 = new u32[N], *res1 = new u32[N];
 
   auto f = [&]() {
-    randomArray(key, N), randomArray(qry, N);
+    randomArrayUnique(key, N), randomArray(qry, N);
 
     u32 *sqry = new u32[M];
     randomArray(sqry, M);
@@ -69,7 +69,7 @@ void checkGpuTable() {
   u32 *deviceResult = coda::malloc<u32>(N);
 
   auto f = [&]() {
-    coda::randomArray(deviceKey, N), coda::randomArray(deviceQry, N), coda::copy(deviceQry, deviceKey, M, coda::D2D);
+    coda::randomArrayUnique(deviceKey, N), coda::randomArray(deviceQry, N), coda::copy(deviceQry, deviceKey, M, coda::D2D);
     coda::copy(hostKey, deviceKey, N, coda::D2H), coda::copy(hostQry, deviceQry, N, coda::D2H);
 
     t_gpu.clear(), t_stl.clear();
@@ -97,18 +97,18 @@ void checkGpuTable() {
 // for K > 20, likely to trigger infinity rehash cycle
 // testing result: this is caused by duplicated keys, we need to introduce duplication detection.
 void checkBatchUpdate() {
-  const u32 K = 22;
+  const u32 K = 24;
   const u32 N = 1 << K;
   GpuTable::Table t_gpu(N * 2, 2);
 
   u32 *deviceKey = coda::malloc<u32>(N);
   u32 *hostKey = new u32[N];
-  coda::randomArray(deviceKey, N);
+  coda::randomArrayUnique(deviceKey, N);
   coda::copy(hostKey, deviceKey, N, coda::D2H);
 
   {
     std::ofstream input("input");
-    for (u32 i = 0; i < N; i++) input << hostKey[i];
+    for (u32 i = 0; i < N; i++) input << hostKey[i] << ' ';
   }
 
   CUDA_CALL(cudaDeviceSynchronize());
@@ -120,38 +120,36 @@ void checkBatchUpdate() {
   return;
 }
 
-i32 main(i32 argc, const char *argv[]) {
-  // Debug() << "check CPU table start";
-  // checkCpuTable();
-  // Debug() << "check CPU table passed";
+i32 main() {
+#if 1
+  Debug() << "check CPU table start\n";
+  checkCpuTable();
+  Debug() << "check CPU table passed\n";
 
-  // Debug() << "check GPU table start";
-  // checkGpuTable();
-  // Debug() << "check GPU table passed";
+  Debug() << "check GPU table start\n";
+  checkGpuTable();
+  Debug() << "check GPU table passed\n";
 
-  // Debug() << "check update kernel start";
-  // checkBatchUpdate();
-  // Debug() << "check update kernel passed";
-
-  for (u32 i = 1; i < argc; i++) {
-    freopen(argv[i], "r", stdin);
-    const u32 K = 22;
-    const u32 N = 1 << K;
-    u32 *hostKeys = new u32[N], *deviceKeys = coda::malloc<u32>(N);
-    {
-      std::ifstream input("input");
-      std::unordered_map<u32, u32> cnt;
-      for (u32 i = 0; i < N; i++) {
-        input >> hostKeys[i];
-        cnt[hostKeys[i]]++;
-        assert(cnt[hostKeys[i]] <= 2u);
-      }
+  Debug() << "check update kernel start\n";
+  checkBatchUpdate();
+  Debug() << "check update kernel passed\n";
+#else
+  const u32 K = 24;
+  const u32 N = 1 << K;
+  u32 *hostKeys = new u32[N], *deviceKeys = coda::malloc<u32>(N);
+  {
+    std::ifstream input("input");
+    std::unordered_map<u32, u32> cnt;
+    for (u32 i = 0; i < N; i++) {
+      input >> hostKeys[i];
+      cnt[hostKeys[i]]++;
+      assert(cnt[hostKeys[i]] <= 2u);
     }
-    coda::copy(deviceKeys, hostKeys, N, coda::H2D);
-    GpuTable::Table tbl(N * 2u, 2u);
-    tbl.update(deviceKeys, N);
-    delete[] hostKeys, coda::free(deviceKeys);
   }
-
+  coda::copy(deviceKeys, hostKeys, N, coda::H2D);
+  GpuTable::Table tbl(N * 2u, 2u);
+  tbl.update(deviceKeys, N);
+  delete[] hostKeys, coda::free(deviceKeys);
+#endif
   return 0;
 }
