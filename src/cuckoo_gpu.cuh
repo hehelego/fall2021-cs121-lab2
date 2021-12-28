@@ -17,7 +17,7 @@ class Table {
   void rehash();
 
 public:
-  Table(u32 cap, u32 t);
+  Table(u32 capacity, u32 subtables=2, double threshold_coeff=4);
   ~Table();
   void clear();
   void update(u32 *keys, u32 n);

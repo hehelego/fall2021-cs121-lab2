@@ -29,6 +29,8 @@ class UnorderedMap {
   std::unordered_set<u32> table;
 
 public:
+  UnorderedMap(u32 cap = 0, u32 t = 0) { (void)cap, (void)t; }
+  ~UnorderedMap() {}
   void clear();
   void update(u32 *keys, u32 n);
   void query(u32 *keys, u32 *result, u32 n) const;

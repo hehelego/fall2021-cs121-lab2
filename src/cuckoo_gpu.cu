@@ -66,9 +66,9 @@ static inline u32 queryMaxThreadsPerBlock() {
   CUDA_CALL(cudaGetDeviceProperties(&dp, 0));
   return dp.maxThreadsPerBlock;
 }
-Table::Table(u32 cap, u32 t) : THREADS_PER_BLOCK(queryMaxThreadsPerBlock()) {
-  _n = cap, _m = t;
-  _threshold = binaryLength(_n) * 4;
+Table::Table(u32 capacity, u32 subtables, double threshold_coeff) : THREADS_PER_BLOCK(queryMaxThreadsPerBlock()) {
+  _n = capacity, _m = subtables;
+  _threshold = u32(binaryLength(_n) * threshold_coeff);
   _slots = coda::malloc<u32 *>(_m);
   for (u32 i = 0; i < _m; i++) _slotsHost[i] = coda::malloc<u32>(_n);
   coda::copy(_slots, _slotsHost, _m, coda::H2D);
