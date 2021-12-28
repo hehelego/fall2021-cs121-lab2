@@ -9,7 +9,7 @@
 #include <curand_kernel.h>
 #include <iostream>
 #include <random>
-#include <set>
+#include <unordered_set>
 
 using u8 = std::uint8_t;
 using i8 = std::int8_t;
@@ -109,7 +109,7 @@ inline void randomArray(u32 *a, u32 n) {
 // HOST random array consists of unique random numbers
 inline void randomArrayUnique(u32 *a, u32 n) {
   std::mt19937 rng(randomSeed());
-  std::set<u32> exists;
+  std::unordered_set<u32> exists;
   for (u32 i = 0; i < n; i++) {
     do a[i] = rng();
     while (exists.count(a[i]));
@@ -162,7 +162,8 @@ inline void randomArray(u32 *d_array, u32 n) {
 inline void randomArrayUnique(u32 *d_array, u32 n) {
   u32 *h_a = new u32[n];
   ::randomArrayUnique(h_a, n);
-  coda::copy(d_array, h_a, n);
+  coda::copy(d_array, h_a, n, coda::H2D);
+  delete[] h_a;
 }
 } // namespace coda
 

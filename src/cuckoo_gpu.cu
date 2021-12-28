@@ -50,7 +50,6 @@ static __global__ void queryKernel(const u32 *keys, u32 *result, u32 n, u32 cap,
   if (i < m) cachedSeeds[i] = seeds[i];
   __syncthreads();
 
-  u32 i = threadIdx.x + blockIdx.x * blockDim.x;
   u32 key = 0;
   if (i < n && !empty(keys[i])) {
     key = keys[i];
@@ -91,7 +90,8 @@ void Table::clear() {
 
 void Table::rehash() {
   Debug() << "GPU TABLE: rehash\n";
-  u32 *backup[M_HASH_FUNCS] coda::copy(_slotsHost, _slots, _m, coda::D2H);
+  u32 *backup[M_HASH_FUNCS];
+  coda::copy(_slotsHost, _slots, _m, coda::D2H);
   for (u32 i = 0; i < _m; i++) {
     backup[i] = _slotsHost[i];
     _slotsHost[i] = coda::malloc<u32>(_n);
