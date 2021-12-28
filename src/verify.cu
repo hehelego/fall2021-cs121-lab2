@@ -16,7 +16,7 @@ double timeOnce(std::function<void()> func) {
   func();
   CUDA_CALL(cudaDeviceSynchronize());
   timer.end();
-  return timer.deltaInSeconds();
+  return timer.delta_ms();
 }
 double timeFunc(std::function<void()> pre, std::function<void()> func, u32 runs) {
   double s = 0;
@@ -48,8 +48,8 @@ void checkCpuTable() {
     t_cpu.update(key, N), t_stl.update(key, N);
     t_cpu.query(qry, res0, N), t_stl.query(qry, res1, N);
     for (u32 i = 0; i < N; i++) {
-      if (bool(res0[i]) != bool(res1[i])) {
-        Output() << "[ERR: CPU cuckoo, STL unordered_map] " << qry[i] << " " << res0[i] << " " << res1[i] << "\n";
+      if (res0[i] != res1[i]) {
+        Debug() << "[ERR: CPU cuckoo, STL unordered_map] " << qry[i] << " " << res0[i] << " " << res1[i] << "\n";
         std::abort();
       }
     }
@@ -81,9 +81,10 @@ void checkGpuTable() {
     coda::copy(hostGpuResult, deviceResult, N, coda::D2H);
 
     for (u32 i = 0; i < N; i++) {
-      if (bool(hostGpuResult[i]) != bool(hostResult[i])) {
-        Output() << "[ERR: GPU cuckoo, STL unordered_map]" << i << " " << hostQry[i] << " " << hostGpuResult[i] << " "
-                 << hostResult[i] << "\n";
+      if (hostGpuResult[i] != hostResult[i]) {
+        Debug() << "[ERR: GPU cuckoo, STL unordered_map]" << i << " " << hostQry[i] << " " << hostGpuResult[i] << " "
+                << hostResult[i] << "\n";
+        std::abort();
       }
     }
   };
@@ -108,25 +109,25 @@ void checkBatchUpdate() {
         t_gpu.clear();
       },
       [&]() { t_gpu.update(deviceKey, N); }, 10);
-  Output() << "insert cost: " << cost << "\n";
+  Debug() << "insert cost: " << cost << "\n";
   cost = timeFunc([]() {}, [&]() { coda::randomArrayUnique(deviceKey, N); }, 20);
-  Output() << "generate cost: " << cost << "\n";
+  Debug() << "generate cost: " << cost << "\n";
   coda::free(deviceKey);
   return;
 }
 void checkRandomUnique() {}
 
 i32 main() {
-  Output() << "check CPU table start\n";
+  Debug() << "check CPU table start\n";
   checkCpuTable();
-  Output() << "check CPU table passed\n";
+  Debug() << "check CPU table passed\n";
 
-  Output() << "check GPU table start\n";
+  Debug() << "check GPU table start\n";
   checkGpuTable();
-  Output() << "check GPU table passed\n";
+  Debug() << "check GPU table passed\n";
 
-  Output() << "check update kernel start\n";
+  Debug() << "check update kernel start\n";
   checkBatchUpdate();
-  Output() << "check update kernel passed\n";
+  Debug() << "check update kernel passed\n";
   return 0;
 }

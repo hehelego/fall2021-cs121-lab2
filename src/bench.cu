@@ -14,7 +14,7 @@ double timeOnce(std::function<void()> func) {
   func();
   CUDA_CALL(cudaDeviceSynchronize());
   timer.end();
-  return timer.deltaInSeconds();
+  return timer.delta_ms();
 }
 double timeFunc(std::function<void()> pre, std::function<void()> func, std::function<void()> post, u32 runs = 5) {
   double s = 0;

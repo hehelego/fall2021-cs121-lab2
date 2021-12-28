@@ -48,10 +48,7 @@ struct Timer {
   Timer() {}
   inline void start() { _start = std::chrono::high_resolution_clock::now(); }
   inline void end() { _end = std::chrono::high_resolution_clock::now(); }
-  inline double deltaInSeconds() const {
-    auto interval = _end - _start;
-    return std::chrono::duration_cast<std::chrono::microseconds>(interval).count() / 1e6;
-  }
+  inline double delta_ms() const { return std::chrono::duration_cast<std::chrono::microseconds>(_end - _start).count(); }
 };
 
 template <typename T>
@@ -110,12 +107,27 @@ inline void randomArray(u32 *a, u32 n) {
 }
 // HOST random array consists of unique random numbers
 inline void randomArrayUnique(u32 *a, u32 n) {
+  const u32 BLOCK = 1 << 16;
+  const u32 CUT_OFF = 1 << 6;
   std::mt19937 rng(randomSeed());
-  std::unordered_set<u32> exists;
-  for (u32 i = 0; i < n; i++) {
-    do a[i] = rng();
-    while (exists.count(a[i]));
-    exists.insert(a[i]);
+  if (n < CUT_OFF) {
+    static std::unordered_set<u32> s;
+    s.clear();
+    for (u32 i = 0; i < n; i++) {
+      do a[i] = rng();
+      while (s.count(a[i]));
+      s.insert(a[i]);
+    }
+  } else {
+    static u32 buf[BLOCK];
+    for (u32 i = 0; i < BLOCK; i++) buf[i] = i;
+    std::shuffle(buf, buf + BLOCK, rng);
+    u32 cur = 0, per_block = div_ceil(n, BLOCK);
+    for (u32 i = 0; i < BLOCK && cur < n; i++) {
+      u32 left = buf[i] * BLOCK;
+      for (u32 j = 0; j < per_block && cur < n; j++) a[cur++] = left + buf[j];
+    }
+    std::shuffle(a, a + n, rng);
   }
 }
 
@@ -169,19 +181,7 @@ inline void randomArray(u32 *d_array, u32 n) {
 // DEVICE random array consists of unique random numbers on device
 inline void randomArrayUnique(u32 *d_a, u32 n) {
   u32 *h_a = new u32[n];
-  coda::randomArray(d_a, n);
-  coda::copy(h_a, d_a, n, coda::D2H);
-
-  std::sort(h_a, h_a + n);
-  u32 *end = std::unique(h_a, h_a + n);
-  std::mt19937 rng(::randomSeed());
-  while (end != h_a + n) {
-    u32 x = 0;
-    do x = rng();
-    while (std::binary_search(h_a, end, x));
-    *end = x;
-    end++;
-  }
+  ::randomArrayUnique(h_a, n);
   coda::copy(d_a, h_a, n, coda::H2D);
   delete[] h_a;
 }

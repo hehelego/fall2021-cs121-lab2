@@ -43,6 +43,7 @@ static __global__ void updateKernel(u32 *keys, std::pair<u32, u32> *result, u32 
       result[i].second = final_slot;
     }
   }
+  __syncthreads();
   if (threadIdx.x == 0 && block_failed) atomicCAS(failed, 0, 1);
 }
 static __global__ void queryKernel(const u32 *keys, u32 *result, u32 n, u32 cap, u32 **const slots, const u32 *const seeds,
@@ -57,7 +58,7 @@ static __global__ void queryKernel(const u32 *keys, u32 *result, u32 n, u32 cap,
     key = keys[i];
     for (u32 j = 0; j < m; j++) {
       u32 slot = xxHash32(cachedSeeds[j], key) % cap;
-      result[i] += slots[j][slot] == key;
+      result[i] |= slots[j][slot] == key;
     }
   }
 }
@@ -67,7 +68,7 @@ static inline u32 queryMaxThreadsPerBlock() {
   return dp.maxThreadsPerBlock;
 }
 Table::Table(u32 capacity, u32 subtables, double threshold_coeff) : THREADS_PER_BLOCK(queryMaxThreadsPerBlock()) {
-  _n = div_ceil(capacity, subtables), _m = subtables;
+  _n = capacity * 0.8, _m = subtables;
   _threshold = u32(binaryLength(_n) * threshold_coeff);
   _slots = coda::malloc<u32 *>(_m);
   for (u32 i = 0; i < _m; i++) _slotsHost[i] = coda::malloc<u32>(_n);
