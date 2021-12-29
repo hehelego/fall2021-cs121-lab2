@@ -3,7 +3,6 @@
 \usepackage{xeCJK}
 \usepackage{fancyhdr}
 \usepackage{amsmath,amsthm,amssymb,amsfonts}
-\usepackage{algorithm2e}
 \usepackage{enumerate}
 \usepackage{xifthen}
 \usepackage{indentfirst}
@@ -12,6 +11,36 @@
 \usepackage{float}
 \usepackage{xcolor}
 
+% section algorithm
+\usepackage[boxed]{algorithm2e}
+\newcommand\mycommfont[1]{\small\ttfamily\textcolor{blue}{#1}}
+\SetCommentSty{mycommfont}
+\DontPrintSemicolon
+\SetKwProg{Fn}{Function}{}{end}
+\SetKwProg{Ker}{Kernel}{}{end}
+\SetKw{KwBreak}{break}
+\SetKw{KwNot}{not}
+\SetKw{KwParallel}{parallel}
+
+\SetKwFunction{FnClear}{clear}
+\SetKwFunction{FnGenHash}{generate-hash-function}
+\SetKwFunction{FnEmpty}{is-empty}
+\SetKwFunction{FnSwap}{swap}
+\SetKwFunction{FnCuckooInsert}{CuckooInsert}
+\SetKwFunction{FnCuckooLookup}{CuckooLookup}
+\SetKwFunction{FnCuckooRehash}{CuckooRehash}
+
+\SetKwFunction{LaunchKernel}{LaunchKernel}
+\SetKwFunction{FnGpuInsert}{GpuCuckooInsert}
+\SetKwFunction{FnGpuLookup}{GpuCuckooLookup}
+\SetKwFunction{FnGpuRehash}{GpuCuckooRehash}
+\SetKwFunction{KerIns}{InsertKernel}
+\SetKwFunction{KerLkp}{LookupKernel}
+\SetKwFunction{AtomicCAS}{atomicCAS}
+\SetKwFunction{AtomicSwap}{atomicExch}
+% section algorithm
+
+% hyperref
 \usepackage{hyperref}
 \hypersetup{
     colorlinks=true,
@@ -22,9 +51,9 @@
     pdfpagemode=FullScreen,
 }
 \urlstyle{same}
+% hyperref
 
 \usepackage[outputdir=tex-output]{minted}
-
 
 \usepackage[
    backend=biber,
@@ -50,7 +79,7 @@
 %
 
 \newcommand{\reportSection}[1]{
-   \newpage
+   \pagebreak
    \section{#1}
    \chead{section \emph{#1}}
 }
@@ -99,7 +128,6 @@
 %%%%% title page %%%%%
 %%%%% TOC page %%%%%
 \maketitle
-\vfill
 \tableofcontents
 \vfill
 \pagebreak
@@ -107,63 +135,389 @@
 %%%%% content page %%%%%
 \reportSection{Introduction}
 
-Hash table is one of the most widely used data structure.
-Since it was invented, extensive studies and practical uses have been made.
-Separate chaining and open addressing.
-
-
-Our overall goal is to make the algorithm as fast as possible.
+Being one of the most widely used data structures, hash table serves as a fundamental building block of advanced data structures and algorithms.
+Since hash table was invented, extensive studies that aim at improving the theoritical complexity and the real-world performance has been done.
+Collision resolution is the main issue to tackle when designing a hash table.
+Separate chaining and open addressing are the two main strategy to deal with hash collisions.
+So far, a perfectly balanced hash table does not exists i.e. people have to make space-time and/or update-lookup tradeoff.\par
+Cuckoo hashing is a space-efficient open addressing hash table first proposed in {}\cite{paper:cuckoo} by Rasmus Pagh and Flemming Friche Rodler.
+It guarantees a worst-case constant lookup time and a expected constant time for insertion.\par
+Cuckoo hashing is a suitable choice for implementing concurrent hash table. In this lab, we implemented a cuckoo hash table on GPU with nVidia CUDA. We did several benchmarks and made empirical performance analysis. Finally, we figured out the bottle neck of our algorithm and proposed a few ways to overcome them.
 
 \reportSection{The Cuckoo Hashing}
 
+In this section, we describe the orignal cuckoo hashing method.
+\ref{algo:cuckoo} is the algorithm pseudo code.\par
+
+Cuckoo hashing uses two sub-tables $T_1,T_2$ and two independent hash functions $h_1,h_2$.
+A key $k$ is stored in either $T_1[h_1(k)\bmod |T_1|]$ or $T_2[h_2(k)\bmod |T_2|]$.
+To insert $k$, we first try to put $k$ at $T_1[h_1(k)\bmod |T_1|]$.
+If that location is empty, then we succeed.
+Otherwise, we evict the key $k'$ that previously occupying this location and try to insert $k'$ into $T_2$ using the same procedure.\\
+We stop on successful insertion or when a infinity loop is detected. In the latter case, we have to do a \textit{rehash}: The table capacity is enlarged\footnote{typically, grow with a constant factor}, $h_1,h_2$ are replaced with new hash functions, all the keys are re-inserted.\par
+
+
+\begin{algorithm}[htbp]
+	\caption{original cuckoo hashing method}
+	\label{algo:cuckoo}
+
+	\Fn{\FnCuckooInsert{$k$}}{
+	\tcp{The orignal cuckoo hashing does not support duplicate keys}
+	\If{\FnCuckooLookup{$k$}}{
+		\KwRet{failed}\;
+	}
+	\For{$\mathrm{run}=0$ \KwTo $\mathrm{MaxLoop}$}{
+
+	\If{\FnEmpty{$T_1[h_1(k)]$}}{ $T_1[h_1(x)] \gets k$\; \KwRet{succeeded}\; }
+	\FnSwap{$T_1[h_1(x)],x$}\;
+
+	\If{\FnEmpty{$T_2[h_2(k)]$}}{ $T_2[h_2(x)] \gets k$\; \KwRet{succeeded}\; }
+	\FnSwap{$T_2[h_2(k)],k$}\;
+
+	}
+	\tcp{the eviction chain is too long, presumed infinity eviction cycle}
+	\FnCuckooRehash{}\;
+	\KwRet{\FnCuckooInsert{$k$}}\;
+	}
+	\Fn{\FnCuckooLookup{$k$}}{
+	\eIf{$T_1[h_1(k)]=x \lor T_2[h_2(k)]=x$}{ \KwRet{found} }
+	{ \KwRet{does not exists}\;}
+	}
+\end{algorithm}
+
 \reportSection{Algorithm Design}
 
-\subsection{Choice of Hash Function}
+\subsection{Parallelized cuckoo hashing}
+
+We demonstrate our parallelized version cuckoo hashing with the following pseudo code \ref{algo:gpucuckoo} \ref{algo:gpucuckookernel}.\par
+We take a straight-forward approach to parallize the cuckoo hashing eviction.
+Atomic operations are employed to prevent concurrent modification on same location.\par
+It turns out that this approach is pretty good.
+When the load factor $\lambda$\footnote{$\lambda=\frac{n}{N}$,where $n$ is the number of inserted keys and $N$ is the hash table capacity.} is low for example $\lambda<0.5$, collisions are infrequent. Even for large load factor, collisions are spread out over the whole table if we choose a good hash function.
+
+\begin{algorithm}[htbp]
+	\caption{GPU kernel functions}
+	\label{algo:gpucuckookernel}
+	\Ker{\KerLkp{$keys,result$}}{
+	\KwData{$keys$: keys to find.\quad $result$: whether a key exists}
+	\ForAll{$k\in keys$ \KwParallel}
+	{
+	$result[k]\gets \mathbf{T}$\;
+	\For{$t=0$ \KwTo $\mathrm{Subtables}$}{
+	\If{$T_t[h_t(k)]=k$}{ $result[k]\gets \mathbf{T}$\; }
+	}
+	}
+	}
+	\Ker{\KerIns{$keys,failed$}}{
+	\KwData{$keys$: keys to insert\quad $failed$: indicator of failed insertion}
+	\ForAll{$k\in keys$ \KwParallel}
+	{
+	\For{$j=0$ \KwTo $\mathrm{EvictionLimit}$}{
+	$t\gets j\bmod \mathrm{Subtables}$\;
+	\AtomicSwap{ {$k$}, {$T_t[h_t(t)]$} }\;
+	\If{\FnEmpty{$k$}}{ \KwBreak\; }
+	}
+	\tcp{the eviction chain is too long, insertion for $k$ is failed}
+	\If{\KwNot{} \FnEmpty{$k$}}{ \AtomicCAS{$failed$,$\mathbf{F}$,$\mathbf{T}$}\; }
+	}
+	}
+\end{algorithm}
+
+
+\begin{algorithm}[htbp]
+	\caption{parallizing cuckoo hashing on GPU}
+	\label{algo:gpucuckoo}
+
+	\Fn{\FnGpuLookup{$keys$}}{
+		\KwIn{a list of keys to lookup in cuckoo hashing table}
+		\KwOut{a list of 0/1 indicating whether the key can be found}
+		$result\gets \mathrm{GpuArray}$\;
+		\LaunchKernel{\KerLkp{$keys$,$result$}}\;
+		\KwRet{$result$}\;
+	}
+	\Fn{\FnGpuInsert{$keys$}}{
+		\KwIn{a list of \textbf{unique} keys to insert}
+		$failed\gets \mathbf{F}$\;
+		\tcp{rehash-insert, until the all the keys are successfully inserted}
+		\While{$\mathbf{T}$}{
+			$\mathrm{failed}\gets \mathbf{F}$\;
+			\LaunchKernel{\KerIns{$k,failed$}}\;
+			\eIf{$failed=\mathbf{T}$}{
+				\FnGpuRehash{}\;
+			}{
+				\KwBreak\;
+			}
+		}
+	}
+	\Fn{\FnGpuRehash{}}{
+		\tcp{save the previously inserted keys}
+		$T'_0,T'_1\ldots \gets T_0,T_1\ldots$\;
+		\tcp{clear the table; find new hash functions}
+		\FnClear{$T_0,T_1\ldots$}\;
+		\FnGenHash{$h_0,h_1\ldots$}\;
+		\tcp{re-insert the keys}
+		\FnGpuInsert{$T'_0\cup T'_1\ldots$}\;
+	}
+\end{algorithm}
+
+\pagebreak
+
+\subsection{Choice of hash function}
 
 To achieve good performance, we have to choose a set of hash function with care.
 Hash functions of high quality are generally slow to compute, which may limit the throughput.
 However, using fast hash functions may result in more collisions, which in turns lower our throughput.
 Finding A hash function that achieves best balance between speed and quality is the key to high performance.
 
-A research\cite{paper:hashfuncperfgpu} published on JCGT\footnote{Journal of Computer Graphics}
-tested a set of cryptographic and non-cryptographic hash functions for their quality and speed in the context of GPU rendering.
+We found a research paper {}\cite{paper:hashfuncperfgpu} on \textit{Journal of Computer Graphics}.
+A set of cryptographic and non-cryptographic hash functions for their quality and speed in the context of GPU rendering.
 They concluded that for 1D to 1D hash function, which is the scenario in lab2, the \emph{xxhash32} falls in the middle of the spectrum from the fastest algorithms to the algorithms that yield the best results.\par
 
-A simple reference implementation\cite{blog:xxhimpl} in cpp was found.\par
+A simple reference implementation {}\cite{blog:xxhimpl} in cpp was found. We reproduced a CUDA version of it.\par
+
+\subsubsection*{The \textit{xxhash32} hash function}
 
 The \emph{xxhash32} takes a two input a 4-byte seed and a byte stream, then produces a 32-bit integer as output.
 Or formally speaking:
 
 \[
-   H:\mathrm{byte}^4\times \mathrm{byte}^\ast \to \mathrm{byte}^4
+	H:\mathrm{byte}^4\times \mathrm{byte}^\ast \to \mathrm{byte}^4
 \]
 
 Therefore, we can creat a set of hash functions by seeding \emph{xxhash32} with different seeds.
 
 \[
-   H_i:\mathrm{byte}^\ast \to \mathrm{byte}^4
-   \qquad
-   H_i(\mathrm{text}) = H(\mathrm{seed}_i,\mathrm{text})
+	H_i:\mathrm{byte}^\ast \to \mathrm{byte}^4
+	\qquad
+	H_i(\mathrm{text}) = H(\mathrm{seed}_i,\mathrm{text})
 \]
+
+Where $\mathrm{seed}_i$ are a set of unique random number.
+They can be generated using any pseudo RNG.
+
+\subsection{Key details in implementation}
+
+\begin{itemize}
+	\item In \textit{xxhash32} calculation, we only need to evaluate the hash of a 4-byte integer.
+	      The loop is manually unrolled for better performance.
+	\item In insertion and lookup kernel, each thread need to access all the seeds for hash function.
+	      GPU shared memory is used as a cache to reduce the memory access latency.
+	\item \textit{curand} from the CUDA toolkit is used to generate random numbers rapidly on GPU.
+	\item We launch blocks containing the maximal possible block size to get high occupancy.
+	\item CUDA calls may fail silently, we have to manually check if they failed.
+	\item CUDA kernel calls are asynchronized. \mintinline{C++}{cudaDeviceSynchronize}
+\end{itemize}
 
 \reportSection{Performance Evaluation}
 
+\subsection{Generating unique random array}
+
+The original cuckoo hashing and our implementation do not support inserting duplicated keys.
+So we have to generate array of unique random numbers in order to test the performance.
+C++ STL and CUDA curand library do not have such feature. We have to implement one.\par
+
+Suppose that we can generate a uniform random numbers in $[0,L-1]$ in constant time,
+we want to generate $m\ (m\llless L)$ unique random array such that every number in $[0,L-1]$ appears in the array with equal probability $m/L$.\par
+One way to generate such samples is to generate the numbers one by one, use a hash table to detect and reject duplicated number.
+However this naive algorithm is in-efficient and takes too much time. We developed the following sampling algorithm to generate test data rapidly.\par
+
+We divides $[0,L-1]$ into $B=\sqrt L$ blocks, we first generate $k=m/B$ unique random numbers $b_1\ldots b_{k}$ in $[0,B-1]$.
+Then the unique sample we generate is
+$
+	b_1,b_1+B,b_1+2B\ldots b_1 B(B-1);
+	b_2,b_2+B,b_2+2B\ldots b_2 B(B-1);
+	\ldots
+	b_k,b_k+B,b_k+2B\ldots b_k B(B-1);
+$.
+Generating $k$ unique random numbers in $[0,B-1]$ can be done by randomly shuffle the permutation $0,1,2\ldots B-1$  can take the first $k$ ones.
+Therefore, we can generate such unique sample in $O(\sqrt L+m)$ time.
+
+
+\subsection{Benchmark setup}
+
+\subsubsection*{Testing environment}
+
+We tested our program on a cloud server equipped with the following main hardware.
+
+\begin{description}
+	\item[CPU] Intel(R) Xeon(R) CPU E5-2678 v3 @ 2.50GHz
+	\item[GPU] RTX 2080 Ti. Turing SM architecture, 11 GB VRAM.
+	\item[RAM] 62GB. unknown configuration.
+\end{description}
+
+The CUDA version is 11.1
+
+\subsubsection*{Test cases}
+
+\begin{enumerate}
+	\item Create a hash table of size $2^{25}$ in GPU global memory, where each table entry stores a
+	      32-bit integer. Insert a set of $2^s$ random integer keys into the hash table, for $s=10,11\ldots 24$
+	\item Insert a set $S$ of $2^{24}$ random keys into a hash table of size $2^{25}$, then perform lookups for the following sets of keys
+	      $S_0,S_1\ldots S_{10}$. Each set $S_i$ should contain $2^{24}$ keys, where $(100-10i)$ percent of the keys are randomly chosen from $S$ and the remainder are random 32-bit keys.
+	\item Fix a set of $n=2^{24}$ random keys, and measure the time to insert the keys into hash tables of sizes $1.1n, 1.2n,\ldots 2n$. Also, measure the insertion times for hash tables of sizes $1.01n$, $1.02n$ and $1.05n$. Terminate the experiment if it takes too long.
+	\item Using $n=2^{24}$ random keys and a hash table of size $1.4n$, experiment with different bounds on the maximum length of an eviction chain before restarting.
+\end{enumerate}
+
+We run each test case at least five times to get consistent performance.
+
+\subsection{Benchmark result}
+
+\subsubsection*{insertion test}
+
+\begin{tabular}{|c|c|c|}
+	\hline
+	insertion size & time(ms)\footnote{$1ms=10^{-6}s$} & performance(MOPS)\footnote{millions of operations (insertions or lookups) per second} \\
+	\hline
+	$2^{10}$       & 41.6                              & 24.6153                                                                               \\
+	$2^{11}$       & 31.8                              & 64.4025                                                                               \\
+	$2^{12}$       & 35.4                              & 115.7062                                                                              \\
+	$2^{13}$       & 37.8                              & 216.7195                                                                              \\
+	$2^{14}$       & 38.2                              & 428.9005                                                                              \\
+	$2^{15}$       & 51.2                              & 640.0                                                                                 \\
+	$2^{16}$       & 82.6                              & 793.4140                                                                              \\
+	$2^{17}$       & 136.4                             & 960.9384                                                                              \\
+	$2^{18}$       & 1364.0                            & 192.1876                                                                              \\
+	$2^{19}$       & 944.4                             & 555.1545                                                                              \\
+	$2^{20}$       & 1423.6                            & 736.5664                                                                              \\
+	$2^{21}$       & 2406.2                            & 871.5617                                                                              \\
+	$2^{22}$       & 4403.0                            & 952.6014                                                                              \\
+	$2^{23}$       & 8979.0                            & 934.2474                                                                              \\
+	$2^{24}$       & 19222.6                           & 872.7859                                                                              \\
+	\hline
+\end{tabular}
+
+When inserting small set of keys, the cost of launching GPU kernels and synchronizing the host and device limit the perform.
+We can observe that the throughput is relatively low compared to inserting large set of keys.\par
+When $n\geq 2^{16}$, the throughput is steady. Since the load factor $\lambda$ is less than $0.5$, collisions are rare.
+Insertion for each key roughly can be done in constant time so the running time is propotion to the number of keys to insert.
+
+\subsubsection*{lookup test}
+
+\begin{tabular}{|c|c|c|}
+	\hline
+	percentage of keys from the inserted keys & time(ms) & performance(MOPS) \\
+	\hline
+	0\%                                       & 579.0    & 28976.1934        \\
+	10\%                                      & 577.0    & 29076.6308        \\
+	20\%                                      & 580.0    & 28926.2344        \\
+	30\%                                      & 577.8    & 29036.3724        \\
+	40\%                                      & 578.4    & 29006.2517        \\
+	50\%                                      & 717.2    & 23392.6603        \\
+	60\%                                      & 712.4    & 23550.2751        \\
+	70\%                                      & 711.0    & 23596.6469        \\
+	80\%                                      & 710.2    & 23623.2272        \\
+	90\%                                      & 711.4    & 23583.3792        \\
+	100\%                                     & 710.8    & 23603.2864        \\
+	\hline
+\end{tabular}
+
+
+Cuckoo hashing guarantees worst-case constant time for lookup.
+The lookup can be perfectly parallelized.
+Thus, the throughput remain constant.
+
+\subsubsection*{insertion with high load factor}
+
+We terminate the insertion if the keys can not fit into the table after 500 rehash.
+
+\begin{tabular}{|c|c|c|}
+	\hline
+	load factor           & time(ms) & performance(MOPS) \\
+	\hline
+	$\frac{10}{11}=0.909$ & 91473.0  & 183.4116          \\
+	$\frac{10}{12}=0.833$ & 52895.4  & 317.1772          \\
+	$\frac{10}{13}=0.769$ & 32446.2  & 517.0779          \\
+	$\frac{10}{14}=0.714$ & 85283.2  & 196.7235          \\
+	$\frac{10}{15}=0.666$ & 51899.4  & 323.2641          \\
+	$\frac{10}{16}=0.625$ & 52622.8  & 318.8202          \\
+	$\frac{10}{17}=0.588$ & 31932.4  & 525.3979          \\
+	$\frac{10}{18}=0.555$ & 25061.8  & 669.4337          \\
+	$\frac{10}{19}=0.526$ & 38706.6  & 433.4458          \\
+	$\frac{10}{20}=0.5  $ & 59105.0  & 283.8544          \\
+	\hline
+	$1/1.01=0.99$         & NA       & NA                \\
+	$1/1.02=0.98$         & NA       & NA                \\
+	$1/1.05=0.95$         & NA       & NA                \\
+	\hline
+\end{tabular}
+
+Cuckoo hashing is a space-efficient method, however, high load factor do hurt the performance.
+When the table is nearly-full, insertion always fails.\\
+We suggest that grow the table size when rehahing is necessary in practice.
+
+\subsubsection*{upperbound on eviction chain length}
+
+\begin{tabular}{|c|c|c|}
+	\hline
+	eviction chain limit & time(ms) & performance(MOPS) \\
+	\hline
+	$1.0 \log_2 n$       & 24727.8  & 678.4758          \\
+	$1.5 \log_2 n$       & 25054.4  & 669.6315          \\
+	$2.0 \log_2 n$       & 32479.4  & 516.5494          \\
+	$2.5 \log_2 n$       & 25055.6  & 669.5994          \\
+	$3.0 \log_2 n$       & 25241.4  & 664.6705          \\
+	$3.5 \log_2 n$       & 25129.8  & 667.6223          \\
+	$4.0 \log_2 n$       & 25703.4  & 652.7236          \\
+	$4.5 \log_2 n$       & 32322.8  & 519.0520          \\
+	$5.0 \log_2 n$       & 25097.4  & 668.4842          \\
+	$5.5 \log_2 n$       & 25116.4  & 667.9785          \\
+	$6.0 \log_2 n$       & 25053.4  & 669.6582          \\
+	$6.5 \log_2 n$       & 25135.8  & 667.4629          \\
+	$7.0 \log_2 n$       & 25068.8  & 669.2468          \\
+	$7.5 \log_2 n$       & 25050.2  & 669.7437          \\
+	\hline
+\end{tabular}
+
+If we using a small limit, frequent rehash operations lower the performance.
+Conversely, if we using a large limit, too much collision would saturate stream multiprocessors.\\
+The cuckoo hashing have too be tuned with care to maximize the performance.
+
 \reportSection{Futher Improvement}
+
+Busying ourselves with final projects, we haven't done much work on optimizing performance and extending the functionality.
+We list a few ways to improve the performance and several possible new features.
+
+\subsection{Duplicated keys}
+
+The original cuckoo hashing and our parallelized version do not support duplicated keys.
+In graph algorithm and GPU rendering, this is acceptable.
+However, duplication lies in the root of some problems. For example, in text processing tasks, some words e.g. \textit{the, in} may frequently appear.\\
+We found that {}\cite{paper:deduphash} tries modify cuckoo hashing for data deduplicatio. They proposed a simple solution to this issue.\\
+When an eviction occurs, compare the key inserted and the evicted key, if they are equal, then stop the eviction chain.
+
+\subsection{Open addressing hash table with a stash}
+
+{}\cite{paper:stashtable} proposed a variant of cuckoo hashing where a small stash is used to store the keys can not be inserted because of collision.
+This can help to prevent rehashing when the load factor is load. However, the lookup time will increase a bit.
+
+\subsection{A two-phase insertion approach}
+
+Warp divergent and uncoalesced memory access hurt GPU parallelism, however we want the hash function to distribute the keys evenly.
+This is sort of paradoxical. We found that {}\cite{paper:rtparahashgpu} proposed an alternative insertion algorithm to address this issue.\par
+The devides the table into buckets of 512 slots.
+The insertion is sub divides into two phases:
+In the first phase, a hash function is used to distribute the keys into buckets.
+In the second phase, they launch a block of thread to execute the cuckoo insertion in each bucket.\par
+This two-level hashing approach can reduce contention, reduce divergent and uncoalesced memory accesses.
+
+\subsection{Alternative structures}
+
+Besides cuckoo hashing, people have been trying to develop other hashing schemes.
+{}\cite{talk:evalparahash} describes and compare several popular approaches
+and proposed a combination of multi-level, cuckoo and linear probing.
 
 %%%%% appendix page %%%%%
 \appendix
 
 \reportSection{Fun Facts}
 \begin{itemize}
-   \item According to \url{https://developer.nvidia.com/blog/inside-pascal/}, atomic operations are optimized for global memory not the shared memory since Kepler SM architecture.\\
-      However, we get neither a boost nor a degrade in performance when testing our program on RTX 2080 Ti with Turing architecture SM.
+	\item According to \url{https://developer.nvidia.com/blog/inside-pascal/}, atomic operations are optimized for global memory not the shared memory since Kepler SM architecture.\\
+	      However, we get neither a boost nor a degrade in performance when testing our program on RTX 2080 Ti with Turing architecture SM.
 \end{itemize}
-\pagebreak
 
 \printbibliography[
 	heading=bibintoc,
-	title={bibliography}
+	title={reference}
 ]
-
 
 \end{document}
